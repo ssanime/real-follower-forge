@@ -126,7 +126,7 @@ serve(async (req) => {
     const chapterLinks = extractAll(html, /<a[^>]+href="([^"]*chapter[^"]*)"[^>]*>/gi);
     console.log('Found chapter links:', chapterLinks.length);
 
-    for (let i = 0; i < Math.min(chapterLinks.length, 10); i++) {
+    for (let i = 0; i < chapterLinks.length; i++) {
       const chapterUrl = chapterLinks[i].startsWith('http') 
         ? chapterLinks[i] 
         : new URL(chapterLinks[i], sourceUrl).href;
@@ -188,7 +188,7 @@ serve(async (req) => {
         success: true, 
         message: 'تم السحب بنجاح',
         mangaId: manga.id,
-        chaptersScraped: Math.min(chapterLinks.length, 10)
+        chaptersScraped: chapterLinks.length
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
