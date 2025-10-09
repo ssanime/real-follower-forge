@@ -26,12 +26,16 @@ serve(async (req) => {
       }
     );
 
-    // Fetch the HTML content
-    const response = await fetch(sourceUrl);
+    // Fetch the HTML content with proper headers
+    const response = await fetch(sourceUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
     const html = await response.text();
     console.log('Fetched HTML, length:', html.length);
 
-    // Parse HTML using basic string methods (no external parser needed)
+    // Parse HTML using basic string methods
     const extractText = (html: string, startTag: string, endTag: string): string => {
       const start = html.indexOf(startTag);
       if (start === -1) return '';
@@ -45,22 +49,84 @@ serve(async (req) => {
       return Array.from(matches, m => m[1]);
     };
 
-    // Extract manga information
-    const title = extractText(html, '<h1', '</h1>').replace(/<[^>]*>/g, '').trim() || 
-                  extractText(html, '<title>', '</title>').split('|')[0].trim();
+    const cleanText = (text: string): string => {
+      return text.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    };
+
+    // Extract manga information with multiple patterns
+    let title = '';
     
-    const description = extractText(html, '<meta name="description" content="', '"') ||
-                       extractText(html, 'class="description">', '</div>') ||
-                       extractText(html, 'class="summary">', '</div>');
+    // Try different title patterns
+    const titlePatterns = [
+      /<h1[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/h1>/i,
+      /<h1[^>]*class="[^"]*post-title[^"]*"[^>]*>([^<]+)<\/h1>/i,
+      /<h1[^>]*>([^<]+)<\/h1>/i,
+      /<meta\s+property="og:title"\s+content="([^"]+)"/i,
+    ];
+
+    for (const pattern of titlePatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        title = cleanText(match[1]);
+        if (title && !title.includes('navbar') && title.length > 2) break;
+      }
+    }
+
+    // Fallback to page title
+    if (!title || title.length < 3) {
+      title = cleanText(extractText(html, '<title>', '</title>').split('|')[0].split('-')[0]);
+    }
+
+    // Extract description
+    let description = '';
+    const descPatterns = [
+      /<meta\s+name="description"\s+content="([^"]+)"/i,
+      /<meta\s+property="og:description"\s+content="([^"]+)"/i,
+      /<div[^>]*class="[^"]*summary[^"]*"[^>]*>([^<]+)<\/div>/i,
+      /<div[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]{0,500}?)<\/div>/i,
+      /<p[^>]*class="[^"]*story[^"]*"[^>]*>([^<]+)<\/p>/i,
+    ];
+
+    for (const pattern of descPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        description = cleanText(match[1]);
+        if (description && description.length > 20) break;
+      }
+    }
 
     // Extract cover image
-    const coverImage = extractText(html, '<meta property="og:image" content="', '"') ||
-                       html.match(/<img[^>]+class="[^"]*cover[^"]*"[^>]+src="([^"]+)"/)?.[1] ||
-                       html.match(/<img[^>]+src="([^"]+)"[^>]*class="[^"]*cover[^"]*"/)?.[1];
+    let coverImage = '';
+    const imagePatterns = [
+      /<meta\s+property="og:image"\s+content="([^"]+)"/i,
+      /<img[^>]*class="[^"]*thumbnail[^"]*"[^>]*src="([^"]+)"/i,
+      /<img[^>]*class="[^"]*cover[^"]*"[^>]*src="([^"]+)"/i,
+      /<div[^>]*class="[^"]*post-thumbnail[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i,
+    ];
+
+    for (const pattern of imagePatterns) {
+      const match = html.match(pattern);
+      if (match && match[1] && match[1].startsWith('http')) {
+        coverImage = match[1];
+        break;
+      }
+    }
 
     // Extract genres
-    const genreMatches = extractAll(html, /<a[^>]+class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/gi) ||
-                        extractAll(html, /<span[^>]+class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/span>/gi);
+    const genrePatterns = [
+      /<a[^>]+href="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/gi,
+      /<a[^>]+href="[^"]*category[^"]*"[^>]*>([^<]+)<\/a>/gi,
+      /<span[^>]+class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/span>/gi,
+    ];
+
+    let genreMatches: string[] = [];
+    for (const pattern of genrePatterns) {
+      const matches = extractAll(html, pattern);
+      if (matches.length > 0) {
+        genreMatches = matches.map(g => cleanText(g)).filter(g => g.length > 1 && g.length < 30);
+        if (genreMatches.length > 0) break;
+      }
+    }
 
     console.log('Extracted data:', { title, description: description?.substring(0, 100), coverImage, genres: genreMatches });
 
@@ -122,20 +188,58 @@ serve(async (req) => {
       }
     }
 
-    // Extract chapters
-    const chapterLinks = extractAll(html, /<a[^>]+href="([^"]*chapter[^"]*)"[^>]*>/gi);
+    // Extract chapters with multiple patterns
+    let chapterLinks: string[] = [];
+    const chapterPatterns = [
+      /<a[^>]+href="([^"]*chapter[^"]*)"[^>]*>/gi,
+      /<a[^>]+href="([^"]*فصل[^"]*)"[^>]*>/gi,
+      /<a[^>]+class="[^"]*chapter[^"]*"[^>]+href="([^"]+)"/gi,
+    ];
+
+    for (const pattern of chapterPatterns) {
+      const links = extractAll(html, pattern);
+      if (links.length > 0) {
+        chapterLinks = links.filter((link, index, self) => 
+          self.indexOf(link) === index && link.startsWith('http')
+        );
+        if (chapterLinks.length > 0) break;
+      }
+    }
+
     console.log('Found chapter links:', chapterLinks.length);
 
-    for (let i = 0; i < chapterLinks.length; i++) {
+    // Process chapters (limit to first 20 for safety)
+    const maxChapters = Math.min(chapterLinks.length, 20);
+    let successfulChapters = 0;
+
+    for (let i = 0; i < maxChapters; i++) {
       const chapterUrl = chapterLinks[i].startsWith('http') 
         ? chapterLinks[i] 
         : new URL(chapterLinks[i], sourceUrl).href;
 
       try {
-        const chapterResponse = await fetch(chapterUrl);
+        const chapterResponse = await fetch(chapterUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
         const chapterHtml = await chapterResponse.text();
 
-        const chapterTitle = extractText(chapterHtml, '<h1', '</h1>').replace(/<[^>]*>/g, '').trim();
+        // Extract chapter title and number
+        let chapterTitle = '';
+        const chapterTitlePatterns = [
+          /<h1[^>]*>([^<]+)<\/h1>/i,
+          /<meta\s+property="og:title"\s+content="([^"]+)"/i,
+        ];
+
+        for (const pattern of chapterTitlePatterns) {
+          const match = chapterHtml.match(pattern);
+          if (match && match[1]) {
+            chapterTitle = cleanText(match[1]);
+            break;
+          }
+        }
+
         const chapterNumber = parseFloat(chapterTitle.match(/\d+(\.\d+)?/)?.[0] || String(i + 1));
 
         // Check if chapter exists
@@ -146,22 +250,41 @@ serve(async (req) => {
           .eq('chapter_number', chapterNumber)
           .maybeSingle();
 
-        if (existingChapter) continue;
+        if (existingChapter) {
+          console.log(`Chapter ${chapterNumber} already exists, skipping`);
+          continue;
+        }
 
         const { data: chapter } = await supabaseAdmin
           .from('chapters')
           .insert({
             manga_id: manga.id,
-            title: chapterTitle || `Chapter ${chapterNumber}`,
+            title: chapterTitle || `الفصل ${chapterNumber}`,
             chapter_number: chapterNumber,
           })
           .select()
           .single();
 
         if (chapter) {
-          // Extract chapter images
-          const imageUrls = extractAll(chapterHtml, /<img[^>]+src="([^"]+\.(jpg|jpeg|png|webp|gif))"[^>]*>/gi);
+          // Extract chapter images with multiple patterns
+          const imagePatterns = [
+            /<img[^>]+src="([^"]+\.(jpg|jpeg|png|webp|gif))"[^>]*>/gi,
+            /<img[^>]+data-src="([^"]+\.(jpg|jpeg|png|webp|gif))"[^>]*>/gi,
+            /<img[^>]+class="[^"]*wp-manga-chapter-img[^"]*"[^>]+src="([^"]+)"/gi,
+          ];
+
+          let imageUrls: string[] = [];
+          for (const pattern of imagePatterns) {
+            const urls = Array.from(chapterHtml.matchAll(pattern), m => m[1])
+              .filter(url => url.startsWith('http'));
+            if (urls.length > 0) {
+              imageUrls = urls;
+              break;
+            }
+          }
           
+          console.log(`Found ${imageUrls.length} images for chapter ${chapterNumber}`);
+
           for (let pageNum = 0; pageNum < imageUrls.length; pageNum++) {
             const { error: pageError } = await supabaseAdmin
               .from('chapter_pages')
@@ -176,6 +299,7 @@ serve(async (req) => {
             }
           }
 
+          successfulChapters++;
           console.log(`Chapter ${chapterNumber} inserted with ${imageUrls.length} pages`);
         }
       } catch (error) {
@@ -186,9 +310,11 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'تم السحب بنجاح',
+        message: `تم سحب ${successfulChapters} فصل بنجاح`,
         mangaId: manga.id,
-        chaptersScraped: chapterLinks.length
+        title: title,
+        chaptersFound: chapterLinks.length,
+        chaptersScraped: successfulChapters
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
