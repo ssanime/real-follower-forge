@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowRight, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft, Home, Menu } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 interface Page {
   id: string;
@@ -17,13 +18,19 @@ interface Chapter {
   manga_id: string;
 }
 
+interface Manga {
+  title: string;
+}
+
 export default function ChapterReader() {
   const { id } = useParams<{ id: string }>();
   const [chapter, setChapter] = useState<Chapter | null>(null);
+  const [manga, setManga] = useState<Manga | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextChapter, setNextChapter] = useState<string | null>(null);
   const [prevChapter, setPrevChapter] = useState<string | null>(null);
+  const [showNav, setShowNav] = useState(true);
 
   useEffect(() => {
     const fetchChapterData = async () => {
@@ -31,15 +38,23 @@ export default function ChapterReader() {
 
       setLoading(true);
 
-      // Fetch chapter details
       const { data: chapterData } = await supabase
         .from("chapters")
         .select("*")
         .eq("id", id)
-        .single();
+        .maybeSingle();
 
       if (chapterData) {
         setChapter(chapterData);
+
+        // Fetch manga title
+        const { data: mangaData } = await supabase
+          .from("manga")
+          .select("title")
+          .eq("id", chapterData.manga_id)
+          .maybeSingle();
+        
+        if (mangaData) setManga(mangaData);
 
         // Fetch next chapter
         const { data: nextData } = await supabase
@@ -49,7 +64,7 @@ export default function ChapterReader() {
           .gt("chapter_number", chapterData.chapter_number)
           .order("chapter_number", { ascending: true })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (nextData) setNextChapter(nextData.id);
 
@@ -61,7 +76,7 @@ export default function ChapterReader() {
           .lt("chapter_number", chapterData.chapter_number)
           .order("chapter_number", { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (prevData) setPrevChapter(prevData.id);
       }
@@ -83,8 +98,8 @@ export default function ChapterReader() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -92,81 +107,131 @@ export default function ChapterReader() {
   if (!chapter) {
     return (
       <div className="container mx-auto p-6">
-        <p className="text-center">الفصل غير موجود</p>
+        <Card className="p-8 text-center">
+          <p className="text-xl text-muted-foreground">الفصل غير موجود</p>
+          <Link to="/">
+            <Button className="mt-4">العودة للرئيسية</Button>
+          </Link>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link to={`/manga/${chapter.manga_id}`}>
-              <Button variant="outline">العودة للمانجا</Button>
-            </Link>
-            
-            <h1 className="text-xl font-bold">
-              {chapter.title || `الفصل ${chapter.chapter_number}`}
-            </h1>
+    <div className="min-h-screen bg-black" dir="rtl">
+      {/* Top Navigation Bar */}
+      <div 
+        className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ${
+          showNav ? 'translate-y-0' : '-translate-y-full'
+        }`}
+      >
+        <div className="bg-black/90 backdrop-blur-sm border-b border-white/10">
+          <div className="container mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <Link to={`/manga/${chapter.manga_id}`}>
+                <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
+                  <Home className="w-4 h-4 ml-2" />
+                  العودة
+                </Button>
+              </Link>
+              
+              <div className="text-center flex-1">
+                <h1 className="text-sm font-bold text-white">
+                  {manga?.title}
+                </h1>
+                <p className="text-xs text-white/60">
+                  {chapter.title || `الفصل ${chapter.chapter_number}`}
+                </p>
+              </div>
 
-            <div className="flex gap-2">
-              {prevChapter && (
-                <Link to={`/chapter/${prevChapter}`}>
-                  <Button variant="outline" size="icon">
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </Link>
-              )}
-              {nextChapter && (
-                <Link to={`/chapter/${nextChapter}`}>
-                  <Button variant="outline" size="icon">
-                    <ArrowLeft className="w-4 h-4" />
-                  </Button>
-                </Link>
-              )}
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowNav(!showNav)}
+                className="text-white hover:bg-white/10"
+              >
+                <Menu className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-4">
-          {pages.map((page) => (
-            <div key={page.id} className="w-full">
-              <img
-                src={page.image_url}
-                alt={`صفحة ${page.page_number}`}
-                className="w-full h-auto rounded-lg shadow-lg"
-                loading="lazy"
-              />
+      {/* Pages Display */}
+      <div className="relative">
+        <div 
+          className="flex flex-col items-center cursor-pointer"
+          onClick={() => setShowNav(!showNav)}
+        >
+          {pages.length === 0 ? (
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center text-white/60">
+                <p className="text-xl mb-2">لا توجد صفحات متاحة</p>
+                <p className="text-sm">لم يتم تحميل صفحات هذا الفصل بعد</p>
+              </div>
             </div>
-          ))}
-
-          {pages.length === 0 && (
-            <p className="text-center text-muted-foreground">
-              لا توجد صفحات لهذا الفصل
-            </p>
+          ) : (
+            pages.map((page) => (
+              <div key={page.id} className="w-full max-w-4xl relative group">
+                <img
+                  src={page.image_url}
+                  alt={`صفحة ${page.page_number}`}
+                  className="w-full h-auto"
+                  loading="lazy"
+                />
+                <div className="absolute top-2 left-2 bg-black/70 text-white px-3 py-1 rounded-full text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                  {page.page_number} / {pages.length}
+                </div>
+              </div>
+            ))
           )}
         </div>
+      </div>
 
-        <div className="flex justify-center gap-4 mt-8">
-          {prevChapter && (
-            <Link to={`/chapter/${prevChapter}`}>
-              <Button variant="default">
-                <ArrowRight className="w-4 h-4 ml-2" />
-                الفصل السابق
-              </Button>
-            </Link>
-          )}
-          {nextChapter && (
-            <Link to={`/chapter/${nextChapter}`}>
-              <Button variant="default">
-                الفصل التالي
-                <ArrowLeft className="w-4 h-4 mr-2" />
-              </Button>
-            </Link>
-          )}
+      {/* Bottom Navigation */}
+      <div 
+        className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ${
+          showNav ? 'translate-y-0' : 'translate-y-full'
+        }`}
+      >
+        <div className="bg-black/90 backdrop-blur-sm border-t border-white/10">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-center gap-4">
+              {prevChapter ? (
+                <Link to={`/chapter/${prevChapter}`} className="flex-1 max-w-xs">
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-white/20 text-white hover:bg-white/10"
+                  >
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                    الفصل السابق
+                  </Button>
+                </Link>
+              ) : (
+                <div className="flex-1 max-w-xs" />
+              )}
+
+              <Link to={`/manga/${chapter.manga_id}`}>
+                <Button variant="default" size="sm">
+                  قائمة الفصول
+                </Button>
+              </Link>
+
+              {nextChapter ? (
+                <Link to={`/chapter/${nextChapter}`} className="flex-1 max-w-xs">
+                  <Button 
+                    variant="outline"
+                    className="w-full border-white/20 text-white hover:bg-white/10"
+                  >
+                    الفصل التالي
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                  </Button>
+                </Link>
+              ) : (
+                <div className="flex-1 max-w-xs" />
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
