@@ -29,42 +29,57 @@ serve(async (req) => {
       }
     );
 
-    // Use Firecrawl to bypass protection and get clean content
+    // Use Firecrawl to bypass protection and get clean content with automatic fallback
     let html = '';
+    let usedFirecrawl = false;
     
     if (FIRECRAWL_API_KEY) {
-      console.log('Using Firecrawl API to bypass protection...');
-      
-      const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: sourceUrl,
-          formats: ['html', 'markdown'],
-          onlyMainContent: false,
-          waitFor: 3000, // Wait for dynamic content to load
-        }),
-      });
+      try {
+        console.log('Trying Firecrawl API to bypass protection...');
+        
+        const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: sourceUrl,
+            formats: ['html'],
+            onlyMainContent: false,
+            waitFor: 2000,
+            timeout: 30000, // 30 seconds timeout
+          }),
+        });
 
-      if (!firecrawlResponse.ok) {
-        throw new Error(`Firecrawl API error: ${firecrawlResponse.status}`);
+        if (firecrawlResponse.ok) {
+          const firecrawlData = await firecrawlResponse.json();
+          html = firecrawlData.data?.html || '';
+          if (html.length > 100) {
+            usedFirecrawl = true;
+            console.log('✅ Firecrawl successful, HTML length:', html.length);
+          }
+        } else {
+          console.log('⚠️ Firecrawl failed with status:', firecrawlResponse.status, '- falling back to standard fetch');
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.log('⚠️ Firecrawl error:', errorMsg, '- falling back to standard fetch');
       }
-
-      const firecrawlData = await firecrawlResponse.json();
-      html = firecrawlData.data?.html || '';
-      console.log('Firecrawl fetched HTML, length:', html.length);
-    } else {
-      console.log('Using standard fetch (no Firecrawl)...');
+    }
+    
+    // Fallback to standard fetch if Firecrawl failed or not available
+    if (!usedFirecrawl) {
+      console.log('Using standard fetch...');
       const response = await fetch(sourceUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
         }
       });
       html = await response.text();
-      console.log('Fetched HTML, length:', html.length);
+      console.log('Standard fetch HTML length:', html.length);
     }
 
     // Parse HTML using basic string methods
@@ -250,31 +265,44 @@ serve(async (req) => {
 
       try {
         let chapterHtml = '';
+        let usedFirecrawlForChapter = false;
         
-        // Use Firecrawl for chapter pages too
+        // Try Firecrawl for chapter pages with fallback
         if (FIRECRAWL_API_KEY) {
-          const chapterFirecrawl = await fetch('https://api.firecrawl.dev/v1/scrape', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              url: chapterUrl,
-              formats: ['html'],
-              onlyMainContent: false,
-              waitFor: 2000,
-            }),
-          });
-          
-          if (chapterFirecrawl.ok) {
-            const chapterData = await chapterFirecrawl.json();
-            chapterHtml = chapterData.data?.html || '';
+          try {
+            const chapterFirecrawl = await fetch('https://api.firecrawl.dev/v1/scrape', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                url: chapterUrl,
+                formats: ['html'],
+                onlyMainContent: false,
+                waitFor: 1500,
+                timeout: 25000,
+              }),
+            });
+            
+            if (chapterFirecrawl.ok) {
+              const chapterData = await chapterFirecrawl.json();
+              chapterHtml = chapterData.data?.html || '';
+              if (chapterHtml.length > 100) {
+                usedFirecrawlForChapter = true;
+              }
+            }
+          } catch (error) {
+            console.log(`Chapter ${i}: Firecrawl failed, using standard fetch`);
           }
-        } else {
+        }
+        
+        // Fallback to standard fetch
+        if (!usedFirecrawlForChapter) {
           const chapterResponse = await fetch(chapterUrl, {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             }
           });
           chapterHtml = await chapterResponse.text();
