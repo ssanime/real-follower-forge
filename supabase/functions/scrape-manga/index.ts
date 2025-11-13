@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Import Firecrawl for better scraping with browser support
+const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -26,14 +29,43 @@ serve(async (req) => {
       }
     );
 
-    // Fetch the HTML content with proper headers
-    const response = await fetch(sourceUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    // Use Firecrawl to bypass protection and get clean content
+    let html = '';
+    
+    if (FIRECRAWL_API_KEY) {
+      console.log('Using Firecrawl API to bypass protection...');
+      
+      const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: sourceUrl,
+          formats: ['html', 'markdown'],
+          onlyMainContent: false,
+          waitFor: 3000, // Wait for dynamic content to load
+        }),
+      });
+
+      if (!firecrawlResponse.ok) {
+        throw new Error(`Firecrawl API error: ${firecrawlResponse.status}`);
       }
-    });
-    const html = await response.text();
-    console.log('Fetched HTML, length:', html.length);
+
+      const firecrawlData = await firecrawlResponse.json();
+      html = firecrawlData.data?.html || '';
+      console.log('Firecrawl fetched HTML, length:', html.length);
+    } else {
+      console.log('Using standard fetch (no Firecrawl)...');
+      const response = await fetch(sourceUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+      html = await response.text();
+      console.log('Fetched HTML, length:', html.length);
+    }
 
     // Parse HTML using basic string methods
     const extractText = (html: string, startTag: string, endTag: string): string => {
@@ -208,22 +240,45 @@ serve(async (req) => {
 
     console.log('Found chapter links:', chapterLinks.length);
 
-    // Process chapters (limit to first 20 for safety)
-    const maxChapters = Math.min(chapterLinks.length, 20);
+    // Process all chapters
     let successfulChapters = 0;
 
-    for (let i = 0; i < maxChapters; i++) {
+    for (let i = 0; i < chapterLinks.length; i++) {
       const chapterUrl = chapterLinks[i].startsWith('http') 
         ? chapterLinks[i] 
         : new URL(chapterLinks[i], sourceUrl).href;
 
       try {
-        const chapterResponse = await fetch(chapterUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        let chapterHtml = '';
+        
+        // Use Firecrawl for chapter pages too
+        if (FIRECRAWL_API_KEY) {
+          const chapterFirecrawl = await fetch('https://api.firecrawl.dev/v1/scrape', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url: chapterUrl,
+              formats: ['html'],
+              onlyMainContent: false,
+              waitFor: 2000,
+            }),
+          });
+          
+          if (chapterFirecrawl.ok) {
+            const chapterData = await chapterFirecrawl.json();
+            chapterHtml = chapterData.data?.html || '';
           }
-        });
-        const chapterHtml = await chapterResponse.text();
+        } else {
+          const chapterResponse = await fetch(chapterUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          });
+          chapterHtml = await chapterResponse.text();
+        }
 
         // Extract chapter title and number
         let chapterTitle = '';
