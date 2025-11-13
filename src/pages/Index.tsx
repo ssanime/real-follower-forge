@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Book, Search, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,7 +65,6 @@ const Index = () => {
               آلاف الفصول من المانجا والمانهوا والمانها بانتظارك
             </p>
 
-            {/* Search Bar */}
             <div className="relative mx-auto max-w-xl">
               <Search className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -90,32 +89,31 @@ const Index = () => {
           
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
             {trending.map((item) => (
-              <Card 
-                key={item.id}
-                className="group relative overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:scale-105 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/20"
-              >
-                <div className="aspect-[2/3] overflow-hidden bg-muted">
-                  {item.cover_image_url ? (
-                    <img
-                      src={item.cover_image_url}
-                      alt={item.title}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <Book className="h-12 w-12 text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="line-clamp-2 text-sm font-medium text-foreground">{item.title}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {item.manga_type}
-                    </Badge>
+              <Link key={item.id} to={`/manga/${item.id}`}>
+                <Card className="group relative overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:scale-105 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/20 cursor-pointer">
+                  <div className="aspect-[2/3] overflow-hidden bg-muted">
+                    {item.cover_image_url ? (
+                      <img
+                        src={item.cover_image_url}
+                        alt={item.title}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <Book className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                    )}
                   </div>
-                </div>
-              </Card>
+                  <div className="p-3">
+                    <p className="line-clamp-2 text-sm font-medium text-foreground">{item.title}</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {item.manga_type}
+                      </Badge>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
             ))}
           </div>
         </section>
@@ -148,48 +146,46 @@ const Index = () => {
                   : true
               )
               .map((item) => (
-                <Card
-                  key={item.id}
-                  className="group relative overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:scale-105 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/20"
-                >
-                  <div className="aspect-[2/3] overflow-hidden bg-muted">
-                    {item.cover_image_url ? (
-                      <img
-                        src={item.cover_image_url}
-                        alt={item.title}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <Book className="h-16 w-16 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="p-4">
-                    <h3 className="mb-2 line-clamp-2 text-sm font-semibold text-foreground">
-                      {item.title}
-                    </h3>
-                    
-                    <div className="flex flex-wrap gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {item.manga_type}
-                      </Badge>
-                      {item.manga_genres?.slice(0, 2).map((mg: any, idx: number) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
-                          {mg.genres.name}
-                        </Badge>
-                      ))}
+                <Link key={item.id} to={`/manga/${item.id}`}>
+                  <Card className="group relative overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:scale-105 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/20 cursor-pointer">
+                    <div className="aspect-[2/3] overflow-hidden bg-muted">
+                      {item.cover_image_url ? (
+                        <img
+                          src={item.cover_image_url}
+                          alt={item.title}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Book className="h-16 w-16 text-muted-foreground" />
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </Card>
+                    
+                    <div className="p-4">
+                      <h3 className="mb-2 line-clamp-2 text-sm font-semibold text-foreground">
+                        {item.title}
+                      </h3>
+                      
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary" className="text-xs">
+                          {item.manga_type}
+                        </Badge>
+                        {item.manga_genres && item.manga_genres.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            {item.manga_genres[0].genres.name}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
               ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-border/50 bg-card/50 p-12 text-center backdrop-blur-sm">
-            <Book className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
-            <h3 className="mb-2 text-xl font-semibold text-foreground">لا توجد مانجا بعد</h3>
-            <p className="text-muted-foreground">ابدأ بإضافة مانجا من مواقعك</p>
+          <div className="flex flex-col items-center justify-center py-16">
+            <Book className="mb-4 h-16 w-16 text-muted-foreground" />
+            <p className="text-lg text-muted-foreground">لا توجد مانجا متاحة حالياً</p>
           </div>
         )}
       </section>
