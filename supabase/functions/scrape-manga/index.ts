@@ -252,53 +252,52 @@ serve(async (req) => {
       }
     }
 
-    // Extract chapters with improved patterns - looking for chapter list sections
+    // Extract chapters - looking for wp-manga-chapter class specifically
     let chapterLinks: string[] = [];
     
-    // First, try to find chapter list container
-    const chapterContainerPatterns = [
-      /<div[^>]*class="[^"]*chapter[^"]*list[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-      /<ul[^>]*class="[^"]*chapter[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
-      /<div[^>]*id="[^"]*chapter[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    ];
+    // Pattern for lekmanga.net chapter list items
+    const chapterItemPattern = /<li[^>]*class="[^"]*wp-manga-chapter[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+    const chapterItems = Array.from(html.matchAll(chapterItemPattern));
     
-    let chapterContainer = html;
-    for (const containerPattern of chapterContainerPatterns) {
-      const match = html.match(containerPattern);
-      if (match && match[0]) {
-        chapterContainer = match[0];
-        console.log('Found chapter container, length:', chapterContainer.length);
-        break;
+    console.log('Found chapter items:', chapterItems.length);
+    
+    // Extract href from each chapter item
+    for (const item of chapterItems) {
+      const hrefMatch = item[1].match(/<a[^>]+href="([^"]+)"[^>]*>/i);
+      if (hrefMatch && hrefMatch[1]) {
+        const url = hrefMatch[1].trim();
+        // Only add if it's a valid URL and not already in the list
+        if (url.startsWith('http') && !chapterLinks.includes(url)) {
+          chapterLinks.push(url);
+        }
       }
     }
     
-    // Extract all links from the container
-    const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>/gi;
-    const allLinks = extractAll(chapterContainer, linkPattern);
-    
-    // Filter for chapter links - look for URLs containing chapter indicators
-    const chapterIndicators = ['chapter', 'فصل', 'ch-', '/ch/', 'الفصل'];
-    chapterLinks = allLinks.filter((link, index, self) => {
-      const isUnique = self.indexOf(link) === index;
-      const isHttp = link.startsWith('http');
-      const hasChapterIndicator = chapterIndicators.some(indicator => 
-        link.toLowerCase().includes(indicator)
-      );
-      return isUnique && isHttp && hasChapterIndicator;
-    });
-    
-    // If no chapters found, try broader search
+    // If no chapters found with wp-manga-chapter, try alternative patterns
     if (chapterLinks.length === 0) {
-      console.log('No chapters found with strict patterns, trying broader search...');
-      const broadLinks = extractAll(html, linkPattern);
-      chapterLinks = broadLinks.filter((link, index, self) => {
-        const isUnique = self.indexOf(link) === index;
-        const isHttp = link.startsWith('http');
-        const hasChapterIndicator = chapterIndicators.some(indicator => 
-          link.toLowerCase().includes(indicator)
-        );
-        return isUnique && isHttp && hasChapterIndicator;
-      });
+      console.log('No wp-manga-chapter found, trying alternative patterns...');
+      
+      // Try finding chapter list container
+      const containerPatterns = [
+        /<ul[^>]*class="[^"]*version-chap[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+        /<div[^>]*class="[^"]*chapter-list[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+      ];
+      
+      for (const pattern of containerPatterns) {
+        const match = html.match(pattern);
+        if (match && match[0]) {
+          // Extract all links from container
+          const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>/gi;
+          const links = Array.from(match[0].matchAll(linkPattern));
+          for (const link of links) {
+            const url = link[1].trim();
+            if (url.startsWith('http') && !chapterLinks.includes(url)) {
+              chapterLinks.push(url);
+            }
+          }
+          if (chapterLinks.length > 0) break;
+        }
+      }
     }
 
     console.log('Found chapter links:', chapterLinks.length);
@@ -397,71 +396,56 @@ serve(async (req) => {
           .single();
 
         if (chapter) {
-          // Extract chapter images with comprehensive patterns
+          // Extract chapter images - specifically for wp-manga-chapter-img class
           let imageUrls: string[] = [];
           
-          // Try different image extraction strategies
-          const strategies = [
-            // Strategy 1: Look for img tags with src
-            () => {
-              const pattern = /<img[^>]+src="([^"]+)"[^>]*>/gi;
-              return Array.from(chapterHtml.matchAll(pattern), m => m[1])
-                .filter(url => {
-                  const isHttp = url.startsWith('http');
-                  const isImage = /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url);
-                  return isHttp && isImage;
-                });
-            },
-            // Strategy 2: Look for data-src (lazy loading)
-            () => {
-              const pattern = /<img[^>]+data-src="([^"]+)"[^>]*>/gi;
-              return Array.from(chapterHtml.matchAll(pattern), m => m[1])
-                .filter(url => url.startsWith('http'));
-            },
-            // Strategy 3: Look for specific manga reader classes
-            () => {
-              const patterns = [
-                /<img[^>]+class="[^"]*wp-manga-chapter-img[^"]*"[^>]+(?:src|data-src)="([^"]+)"/gi,
-                /<img[^>]+class="[^"]*chapter-img[^"]*"[^>]+(?:src|data-src)="([^"]+)"/gi,
-                /<img[^>]+id="[^"]*image[^"]*"[^>]+(?:src|data-src)="([^"]+)"/gi,
-              ];
-              const urls: string[] = [];
-              for (const pattern of patterns) {
-                const matches = Array.from(chapterHtml.matchAll(pattern), m => m[1]);
-                urls.push(...matches.filter(url => url.startsWith('http')));
-              }
-              return urls;
-            },
-            // Strategy 4: Look in script tags for image arrays
-            () => {
-              const scriptPattern = /<script[^>]*>([\s\S]*?)<\/script>/gi;
-              const scripts = Array.from(chapterHtml.matchAll(scriptPattern), m => m[1]);
-              const urls: string[] = [];
-              for (const script of scripts) {
-                const imageArrayPattern = /\[\s*"([^"]+\.(?:jpg|jpeg|png|webp|gif)[^"]*)"[^\]]*\]/gi;
-                const matches = script.match(imageArrayPattern);
-                if (matches) {
-                  const urlPattern = /"([^"]+\.(?:jpg|jpeg|png|webp|gif)[^"]*)"/g;
-                  for (const match of matches) {
-                    const imageUrls = Array.from(match.matchAll(urlPattern), m => m[1]);
-                    urls.push(...imageUrls.filter(url => url.startsWith('http')));
-                  }
-                }
-              }
-              return urls;
-            }
-          ];
+          // Strategy 1: Look for wp-manga-chapter-img class (most common on lekmanga.net)
+          const wpMangaPattern = /<img[^>]*class="[^"]*wp-manga-chapter-img[^"]*"[^>]*src="([^"]+)"[^>]*>/gi;
+          let matches = Array.from(chapterHtml.matchAll(wpMangaPattern));
           
-          // Try each strategy until we find images
-          for (const strategy of strategies) {
-            const urls = strategy();
-            if (urls.length > 0) {
-              // Remove duplicates and sort by potential page number
-              imageUrls = Array.from(new Set(urls));
-              console.log(`Found ${imageUrls.length} images using strategy`);
-              break;
+          if (matches.length > 0) {
+            imageUrls = matches.map(m => m[1]).filter(url => url.startsWith('http'));
+            console.log(`Found ${imageUrls.length} images with wp-manga-chapter-img class`);
+          }
+          
+          // Strategy 2: If no images found, try data-src attribute
+          if (imageUrls.length === 0) {
+            const dataSrcPattern = /<img[^>]*class="[^"]*wp-manga-chapter-img[^"]*"[^>]*data-src="([^"]+)"[^>]*>/gi;
+            matches = Array.from(chapterHtml.matchAll(dataSrcPattern));
+            if (matches.length > 0) {
+              imageUrls = matches.map(m => m[1]).filter(url => url.startsWith('http'));
+              console.log(`Found ${imageUrls.length} images with data-src attribute`);
             }
           }
+          
+          // Strategy 3: Look for img tags with id="image-*"
+          if (imageUrls.length === 0) {
+            const imageIdPattern = /<img[^>]*id="image-\d+"[^>]*src="([^"]+)"[^>]*>/gi;
+            matches = Array.from(chapterHtml.matchAll(imageIdPattern));
+            if (matches.length > 0) {
+              imageUrls = matches.map(m => m[1]).filter(url => url.startsWith('http'));
+              console.log(`Found ${imageUrls.length} images with image-* id`);
+            }
+          }
+          
+          // Strategy 4: Broader search - any img with valid image URL
+          if (imageUrls.length === 0) {
+            const broadPattern = /<img[^>]+src="([^"]+\.(?:jpg|jpeg|png|webp|gif)[^"]*)"[^>]*>/gi;
+            matches = Array.from(chapterHtml.matchAll(broadPattern));
+            if (matches.length > 0) {
+              imageUrls = matches
+                .map(m => m[1])
+                .filter(url => {
+                  // Filter for valid image URLs from lekmanga domains
+                  return url.startsWith('http') && 
+                         (url.includes('lekmanga') || url.includes('tempsolo'));
+                });
+              console.log(`Found ${imageUrls.length} images with broad search`);
+            }
+          }
+          
+          // Remove duplicates while preserving order
+          imageUrls = Array.from(new Set(imageUrls));
           
           console.log(`Total ${imageUrls.length} images for chapter ${chapterNumber}`);
 
