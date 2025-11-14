@@ -235,22 +235,53 @@ serve(async (req) => {
       }
     }
 
-    // Extract chapters with multiple patterns
+    // Extract chapters with improved patterns - looking for chapter list sections
     let chapterLinks: string[] = [];
-    const chapterPatterns = [
-      /<a[^>]+href="([^"]*chapter[^"]*)"[^>]*>/gi,
-      /<a[^>]+href="([^"]*فصل[^"]*)"[^>]*>/gi,
-      /<a[^>]+class="[^"]*chapter[^"]*"[^>]+href="([^"]+)"/gi,
+    
+    // First, try to find chapter list container
+    const chapterContainerPatterns = [
+      /<div[^>]*class="[^"]*chapter[^"]*list[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+      /<ul[^>]*class="[^"]*chapter[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+      /<div[^>]*id="[^"]*chapter[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
     ];
-
-    for (const pattern of chapterPatterns) {
-      const links = extractAll(html, pattern);
-      if (links.length > 0) {
-        chapterLinks = links.filter((link, index, self) => 
-          self.indexOf(link) === index && link.startsWith('http')
-        );
-        if (chapterLinks.length > 0) break;
+    
+    let chapterContainer = html;
+    for (const containerPattern of chapterContainerPatterns) {
+      const match = html.match(containerPattern);
+      if (match && match[0]) {
+        chapterContainer = match[0];
+        console.log('Found chapter container, length:', chapterContainer.length);
+        break;
       }
+    }
+    
+    // Extract all links from the container
+    const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>/gi;
+    const allLinks = extractAll(chapterContainer, linkPattern);
+    
+    // Filter for chapter links - look for URLs containing chapter indicators
+    const chapterIndicators = ['chapter', 'فصل', 'ch-', '/ch/', 'الفصل'];
+    chapterLinks = allLinks.filter((link, index, self) => {
+      const isUnique = self.indexOf(link) === index;
+      const isHttp = link.startsWith('http');
+      const hasChapterIndicator = chapterIndicators.some(indicator => 
+        link.toLowerCase().includes(indicator)
+      );
+      return isUnique && isHttp && hasChapterIndicator;
+    });
+    
+    // If no chapters found, try broader search
+    if (chapterLinks.length === 0) {
+      console.log('No chapters found with strict patterns, trying broader search...');
+      const broadLinks = extractAll(html, linkPattern);
+      chapterLinks = broadLinks.filter((link, index, self) => {
+        const isUnique = self.indexOf(link) === index;
+        const isHttp = link.startsWith('http');
+        const hasChapterIndicator = chapterIndicators.some(indicator => 
+          link.toLowerCase().includes(indicator)
+        );
+        return isUnique && isHttp && hasChapterIndicator;
+      });
     }
 
     console.log('Found chapter links:', chapterLinks.length);
@@ -349,24 +380,73 @@ serve(async (req) => {
           .single();
 
         if (chapter) {
-          // Extract chapter images with multiple patterns
-          const imagePatterns = [
-            /<img[^>]+src="([^"]+\.(jpg|jpeg|png|webp|gif))"[^>]*>/gi,
-            /<img[^>]+data-src="([^"]+\.(jpg|jpeg|png|webp|gif))"[^>]*>/gi,
-            /<img[^>]+class="[^"]*wp-manga-chapter-img[^"]*"[^>]+src="([^"]+)"/gi,
-          ];
-
+          // Extract chapter images with comprehensive patterns
           let imageUrls: string[] = [];
-          for (const pattern of imagePatterns) {
-            const urls = Array.from(chapterHtml.matchAll(pattern), m => m[1])
-              .filter(url => url.startsWith('http'));
+          
+          // Try different image extraction strategies
+          const strategies = [
+            // Strategy 1: Look for img tags with src
+            () => {
+              const pattern = /<img[^>]+src="([^"]+)"[^>]*>/gi;
+              return Array.from(chapterHtml.matchAll(pattern), m => m[1])
+                .filter(url => {
+                  const isHttp = url.startsWith('http');
+                  const isImage = /\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(url);
+                  return isHttp && isImage;
+                });
+            },
+            // Strategy 2: Look for data-src (lazy loading)
+            () => {
+              const pattern = /<img[^>]+data-src="([^"]+)"[^>]*>/gi;
+              return Array.from(chapterHtml.matchAll(pattern), m => m[1])
+                .filter(url => url.startsWith('http'));
+            },
+            // Strategy 3: Look for specific manga reader classes
+            () => {
+              const patterns = [
+                /<img[^>]+class="[^"]*wp-manga-chapter-img[^"]*"[^>]+(?:src|data-src)="([^"]+)"/gi,
+                /<img[^>]+class="[^"]*chapter-img[^"]*"[^>]+(?:src|data-src)="([^"]+)"/gi,
+                /<img[^>]+id="[^"]*image[^"]*"[^>]+(?:src|data-src)="([^"]+)"/gi,
+              ];
+              const urls: string[] = [];
+              for (const pattern of patterns) {
+                const matches = Array.from(chapterHtml.matchAll(pattern), m => m[1]);
+                urls.push(...matches.filter(url => url.startsWith('http')));
+              }
+              return urls;
+            },
+            // Strategy 4: Look in script tags for image arrays
+            () => {
+              const scriptPattern = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+              const scripts = Array.from(chapterHtml.matchAll(scriptPattern), m => m[1]);
+              const urls: string[] = [];
+              for (const script of scripts) {
+                const imageArrayPattern = /\[\s*"([^"]+\.(?:jpg|jpeg|png|webp|gif)[^"]*)"[^\]]*\]/gi;
+                const matches = script.match(imageArrayPattern);
+                if (matches) {
+                  const urlPattern = /"([^"]+\.(?:jpg|jpeg|png|webp|gif)[^"]*)"/g;
+                  for (const match of matches) {
+                    const imageUrls = Array.from(match.matchAll(urlPattern), m => m[1]);
+                    urls.push(...imageUrls.filter(url => url.startsWith('http')));
+                  }
+                }
+              }
+              return urls;
+            }
+          ];
+          
+          // Try each strategy until we find images
+          for (const strategy of strategies) {
+            const urls = strategy();
             if (urls.length > 0) {
-              imageUrls = urls;
+              // Remove duplicates and sort by potential page number
+              imageUrls = Array.from(new Set(urls));
+              console.log(`Found ${imageUrls.length} images using strategy`);
               break;
             }
           }
           
-          console.log(`Found ${imageUrls.length} images for chapter ${chapterNumber}`);
+          console.log(`Total ${imageUrls.length} images for chapter ${chapterNumber}`);
 
           for (let pageNum = 0; pageNum < imageUrls.length; pageNum++) {
             const { error: pageError } = await supabaseAdmin
