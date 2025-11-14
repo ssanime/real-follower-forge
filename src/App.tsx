@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import MangaDetails from "./pages/MangaDetails";
 import ChapterReader from "./pages/ChapterReader";
+import Browse from "./pages/Browse";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/browse/:type" element={<Browse />} />
           <Route path="/manga/:id" element={<MangaDetails />} />
           <Route path="/chapter/:id" element={<ChapterReader />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
