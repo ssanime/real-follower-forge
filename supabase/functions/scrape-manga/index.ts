@@ -18,6 +18,23 @@ serve(async (req) => {
     const { sourceUrl } = await req.json();
     console.log('Starting scrape for URL:', sourceUrl);
 
+    // Validate URL format
+    if (!sourceUrl || typeof sourceUrl !== 'string') {
+      throw new Error('رابط غير صالح - الرجاء إدخال رابط صحيح');
+    }
+
+    // Check if it's a valid URL
+    try {
+      new URL(sourceUrl);
+    } catch {
+      throw new Error('رابط غير صالح - الرجاء إدخال رابط صحيح للمانجا');
+    }
+
+    // Check if URL starts with http/https
+    if (!sourceUrl.startsWith('http://') && !sourceUrl.startsWith('https://')) {
+      throw new Error('الرابط يجب أن يبدأ بـ http:// أو https://');
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
