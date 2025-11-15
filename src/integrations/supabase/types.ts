@@ -113,11 +113,14 @@ export type Database = {
           cover_image_url: string | null
           created_at: string | null
           description: string | null
+          featured: boolean | null
+          featured_order: number | null
           id: string
           manga_type: Database["public"]["Enums"]["manga_type"]
           rating: number | null
           rating_count: number | null
           release_year: number | null
+          source_url: string | null
           status: Database["public"]["Enums"]["manga_status"] | null
           studio: string | null
           title: string
@@ -131,11 +134,14 @@ export type Database = {
           cover_image_url?: string | null
           created_at?: string | null
           description?: string | null
+          featured?: boolean | null
+          featured_order?: number | null
           id?: string
           manga_type: Database["public"]["Enums"]["manga_type"]
           rating?: number | null
           rating_count?: number | null
           release_year?: number | null
+          source_url?: string | null
           status?: Database["public"]["Enums"]["manga_status"] | null
           studio?: string | null
           title: string
@@ -149,11 +155,14 @@ export type Database = {
           cover_image_url?: string | null
           created_at?: string | null
           description?: string | null
+          featured?: boolean | null
+          featured_order?: number | null
           id?: string
           manga_type?: Database["public"]["Enums"]["manga_type"]
           rating?: number | null
           rating_count?: number | null
           release_year?: number | null
+          source_url?: string | null
           status?: Database["public"]["Enums"]["manga_status"] | null
           studio?: string | null
           title?: string

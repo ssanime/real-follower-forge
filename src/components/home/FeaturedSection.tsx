@@ -13,7 +13,14 @@ export const FeaturedSection = () => {
 
   useEffect(() => {
     fetchFeatured();
-  }, []);
+    const interval = setInterval(() => {
+      if (featured.length > 0) {
+        next();
+      }
+    }, 5000); // Auto-advance every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [featured.length]);
 
   const fetchFeatured = async () => {
     try {
@@ -27,7 +34,8 @@ export const FeaturedSection = () => {
             )
           )
         `)
-        .order("total_views", { ascending: false })
+        .eq("featured", true)
+        .order("featured_order", { ascending: true })
         .limit(10);
 
       if (error) throw error;
