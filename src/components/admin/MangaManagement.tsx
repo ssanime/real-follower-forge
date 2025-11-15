@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Pencil, Trash2, RefreshCw, Eye } from "lucide-react";
+import { Pencil, Trash2, RefreshCw, Eye, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 export const MangaManagement = () => {
   const { toast } = useToast();
@@ -126,6 +127,65 @@ export const MangaManagement = () => {
     }
   };
 
+  const handleToggleFeatured = async (mangaId: string, currentFeatured: boolean) => {
+    try {
+      if (!currentFeatured) {
+        // Count current featured manga
+        const { count } = await supabase
+          .from("manga")
+          .select("*", { count: "exact", head: true })
+          .eq("featured", true);
+
+        if (count && count >= 10) {
+          toast({
+            title: "تحذير",
+            description: "لا يمكن إضافة أكثر من 10 مانجا مميزة",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Get max order
+        const { data: maxOrder } = await supabase
+          .from("manga")
+          .select("featured_order")
+          .eq("featured", true)
+          .order("featured_order", { ascending: false })
+          .limit(1)
+          .single();
+
+        const newOrder = (maxOrder?.featured_order || 0) + 1;
+
+        const { error } = await supabase
+          .from("manga")
+          .update({ featured: true, featured_order: newOrder })
+          .eq("id", mangaId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("manga")
+          .update({ featured: false, featured_order: null })
+          .eq("id", mangaId);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "نجح!",
+        description: currentFeatured ? "تم إلغاء التمييز" : "تم إضافة المانجا للمميزة",
+      });
+
+      await fetchMangas();
+    } catch (error: any) {
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل تحديث الحالة",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredMangas = mangas.filter((manga) =>
     manga.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -154,6 +214,7 @@ export const MangaManagement = () => {
                 <TableHead className="text-right">الحالة</TableHead>
                 <TableHead className="text-right">التصنيفات</TableHead>
                 <TableHead className="text-right">المشاهدات</TableHead>
+                <TableHead className="text-right">مميز</TableHead>
                 <TableHead className="text-right">الإجراءات</TableHead>
               </TableRow>
             </TableHeader>
@@ -179,6 +240,20 @@ export const MangaManagement = () => {
                     </div>
                   </TableCell>
                   <TableCell>{manga.total_views || 0}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={manga.featured || false}
+                        onCheckedChange={() => handleToggleFeatured(manga.id, manga.featured)}
+                      />
+                      {manga.featured && (
+                        <Badge variant="secondary" className="gap-1">
+                          <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                          {manga.featured_order}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button
