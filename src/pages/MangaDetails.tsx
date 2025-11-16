@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, BookOpen, Star, Calendar, User, Palette, ArrowRight } from "lucide-react";
+import Navigation from "@/components/Navigation";
 
 interface Manga {
   id: string;
@@ -103,6 +104,7 @@ export default function MangaDetails() {
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
+      <Navigation />
       {/* Hero Section with Cover */}
       <div className="relative h-96 overflow-hidden border-b">
         {manga.cover_image_url && (
