@@ -201,35 +201,35 @@ serve(async (req) => {
       .eq('title', title)
       .maybeSingle();
 
+    let mangaId: string;
+
     if (existingManga) {
-      console.log('Manga already exists:', existingManga.id);
-      return new Response(
-        JSON.stringify({ message: 'المانجا موجودة مسبقاً', mangaId: existingManga.id }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      mangaId = existingManga.id;
+      console.log('Manga already exists, will update chapters for:', mangaId);
+    } else {
+      // Insert manga if it does not exist
+      const { data: manga, error: mangaError } = await supabaseAdmin
+        .from('manga')
+        .insert({
+          title,
+          description: description || null,
+          cover_image_url: coverImage || null,
+          manga_type: 'manga',
+          status: 'ongoing',
+          author: extractText(html, 'class="author">', '</') || null,
+          artist: extractText(html, 'class="artist">', '</') || null,
+        })
+        .select()
+        .single();
+
+      if (mangaError) {
+        console.error('Error inserting manga:', mangaError);
+        throw mangaError;
+      }
+
+      mangaId = manga.id;
+      console.log('Manga inserted:', mangaId);
     }
-
-    // Insert manga
-    const { data: manga, error: mangaError } = await supabaseAdmin
-      .from('manga')
-      .insert({
-        title,
-        description: description || null,
-        cover_image_url: coverImage || null,
-        manga_type: 'manga',
-        status: 'ongoing',
-        author: extractText(html, 'class="author">', '</') || null,
-        artist: extractText(html, 'class="artist">', '</') || null,
-      })
-      .select()
-      .single();
-
-    if (mangaError) {
-      console.error('Error inserting manga:', mangaError);
-      throw mangaError;
-    }
-
-    console.log('Manga inserted:', manga.id);
 
     // Insert genres
     for (const genreName of genreMatches) {
@@ -244,7 +244,7 @@ serve(async (req) => {
       if (genre) {
         const { error: genreError } = await supabaseAdmin
           .from('manga_genres')
-          .insert({ manga_id: manga.id, genre_id: genre.id });
+          .insert({ manga_id: mangaId, genre_id: genre.id });
         
         if (genreError && !genreError.message.includes('duplicate')) {
           console.error('Error inserting manga_genre:', genreError);
@@ -407,11 +407,11 @@ serve(async (req) => {
 
         const chapterNumber = parseFloat(chapterTitle.match(/\d+(\.\d+)?/)?.[0] || String(i + 1));
 
-        // Check if chapter exists
+        // Check if chapter exists for this manga
         const { data: existingChapter } = await supabaseAdmin
           .from('chapters')
           .select('id')
-          .eq('manga_id', manga.id)
+          .eq('manga_id', mangaId)
           .eq('chapter_number', chapterNumber)
           .maybeSingle();
 
@@ -423,7 +423,7 @@ serve(async (req) => {
         const { data: chapter } = await supabaseAdmin
           .from('chapters')
           .insert({
-            manga_id: manga.id,
+            manga_id: mangaId,
             title: chapterTitle || `الفصل ${chapterNumber}`,
             chapter_number: chapterNumber,
           })
@@ -510,7 +510,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: `تم سحب ${successfulChapters} فصل بنجاح`,
-        mangaId: manga.id,
+        mangaId,
         title: title,
         chaptersFound: chapterLinks.length,
         chaptersScraped: successfulChapters
