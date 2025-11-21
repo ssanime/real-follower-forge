@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -36,8 +38,8 @@ All colors MUST be HSL.
     --input: 215 28% 17%;
     --ring: 263 70% 50%;
 
-    --radius: 0.75rem;
-    
+    --radius: 2.25rem;
+
     --gradient-primary: linear-gradient(135deg, hsl(263 70% 50%), hsl(217 92% 60%));
     --gradient-card: linear-gradient(135deg, hsl(224 71% 4%), hsl(215 28% 17%));
     --shadow-glow: 0 0 40px hsl(263 70% 50% / 0.3);
@@ -57,6 +59,10 @@ All colors MUST be HSL.
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --font-sans: Roboto, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+
+    --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, Times New Roman, Times, serif;
   }
 
   .dark {
@@ -95,6 +101,9 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --radius: 2.25rem;
+    --font-sans: Roboto, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+    --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, Times New Roman, Times, serif;
   }
 }
 
