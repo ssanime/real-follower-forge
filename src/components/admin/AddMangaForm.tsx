@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,8 @@ export const AddMangaForm = () => {
   const [alternativeTitles, setAlternativeTitles] = useState<string>("");
   const [mangas, setMangas] = useState<any[]>([]);
   const [selectedMangaId, setSelectedMangaId] = useState<string>("");
+  const [isScraping, setIsScraping] = useState(false);
+  const [scrapeUrl, setScrapeUrl] = useState("");
   const [chapterData, setChapterData] = useState({
     number: "",
     title: "",
@@ -55,6 +57,43 @@ export const AddMangaForm = () => {
   const fetchMangas = async () => {
     const { data } = await supabase.from("manga").select("id, title").order("title");
     setMangas(data || []);
+  };
+
+  const handleScrape = async () => {
+    if (!scrapeUrl.trim()) {
+      toast({
+        title: "خطأ",
+        description: "الرجاء إدخال رابط المانجا",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsScraping(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('scrape-manga', {
+        body: { sourceUrl: scrapeUrl }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "نجح",
+        description: data.message || `تم سحب ${data.chaptersScraped} فصل بنجاح`,
+      });
+      
+      setScrapeUrl("");
+      fetchMangas();
+    } catch (error: any) {
+      console.error('Scraping error:', error);
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل في سحب المانجا",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScraping(false);
+    }
   };
 
   const handleSubmitManga = async (e: React.FormEvent) => {
@@ -223,11 +262,43 @@ export const AddMangaForm = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="manga" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs defaultValue="scrape" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="scrape">سحب من موقع</TabsTrigger>
           <TabsTrigger value="manga">إضافة مانجا</TabsTrigger>
           <TabsTrigger value="chapter">إضافة فصل</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="scrape" className="mt-6">
+          <div className="space-y-4 rounded-lg border border-border/50 bg-background/50 p-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">سحب مانجا مباشرة من الموقع</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                أدخل رابط صفحة المانجا وسيتم سحب جميع المعلومات والفصول تلقائياً
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="scrapeUrl">رابط المانجا</Label>
+              <Input
+                id="scrapeUrl"
+                type="url"
+                value={scrapeUrl}
+                onChange={(e) => setScrapeUrl(e.target.value)}
+                placeholder="https://lekmanga.net/manga/example"
+                disabled={isScraping}
+              />
+            </div>
+            <Button 
+              type="button" 
+              onClick={handleScrape} 
+              disabled={isScraping}
+              className="w-full"
+            >
+              <Download className="ml-2 h-4 w-4" />
+              {isScraping ? "جاري السحب..." : "سحب المانجا وجميع الفصول"}
+            </Button>
+          </div>
+        </TabsContent>
 
         <TabsContent value="manga" className="mt-6">
           <form onSubmit={handleSubmitManga} className="space-y-6">

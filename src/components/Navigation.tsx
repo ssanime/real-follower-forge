@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Book, BookOpen, Menu, X, Settings, LogIn, LogOut } from "lucide-react";
+import { Book, BookOpen, Menu, X, Settings, LogIn, LogOut, UserPlus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -108,12 +108,20 @@ export default function Navigation() {
                 تسجيل الخروج
               </Button>
             ) : (
-              <Link to="/auth">
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                  <LogIn className="h-4 w-4" />
-                  تسجيل الدخول
-                </Button>
-              </Link>
+              <div className="flex gap-2">
+                <Link to="/auth">
+                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <LogIn className="h-4 w-4" />
+                    تسجيل الدخول
+                  </Button>
+                </Link>
+                <Link to="/auth">
+                  <Button variant="default" size="sm" className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    إنشاء حساب
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
 
@@ -175,12 +183,20 @@ export default function Navigation() {
                   تسجيل الخروج
                 </Button>
               ) : (
-                <Link to="/auth" onClick={() => setIsOpen(false)}>
-                  <Button variant="ghost" className="flex items-center gap-2 justify-start px-4 w-full">
-                    <LogIn className="h-4 w-4" />
-                    تسجيل الدخول
-                  </Button>
-                </Link>
+                <>
+                  <Link to="/auth" onClick={() => setIsOpen(false)}>
+                    <Button variant="ghost" className="flex items-center gap-2 justify-start px-4 w-full">
+                      <LogIn className="h-4 w-4" />
+                      تسجيل الدخول
+                    </Button>
+                  </Link>
+                  <Link to="/auth" onClick={() => setIsOpen(false)}>
+                    <Button variant="default" className="flex items-center gap-2 justify-start px-4 w-full">
+                      <UserPlus className="h-4 w-4" />
+                      إنشاء حساب
+                    </Button>
+                  </Link>
+                </>
               )}
             </div>
           </div>
