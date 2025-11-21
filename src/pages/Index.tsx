@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { FeaturedSection } from "@/components/home/FeaturedSection";
+import { LatestChapters } from "@/components/home/LatestChapters";
 import { TrendingUp, Clock, Star, Flame } from "lucide-react";
 
 const Index = () => {
@@ -97,6 +98,9 @@ const Index = () => {
             </Card>
           </Link>
         </div>
+
+        {/* Latest Chapters Section */}
+        <LatestChapters />
 
         {/* Latest Manga Section */}
         <section className="py-12">
