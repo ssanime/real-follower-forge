@@ -302,10 +302,12 @@ serve(async (req) => {
 
     console.log('Found chapter links:', chapterLinks.length);
 
-    // Process all chapters
+    // Process all chapters (no limit)
     let successfulChapters = 0;
+    const totalChapters = chapterLinks.length;
+    console.log(`Processing all ${totalChapters} chapters...`);
 
-    for (let i = 0; i < chapterLinks.length; i++) {
+    for (let i = 0; i < totalChapters; i++) {
       const chapterUrl = chapterLinks[i].startsWith('http') 
         ? chapterLinks[i] 
         : new URL(chapterLinks[i], sourceUrl).href;
