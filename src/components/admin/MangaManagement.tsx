@@ -146,15 +146,15 @@ export const MangaManagement = () => {
         }
 
         // Get max order
-        const { data: maxOrder } = await supabase
+        const { data: maxOrderData } = await supabase
           .from("manga")
           .select("featured_order")
           .eq("featured", true)
           .order("featured_order", { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
-        const newOrder = (maxOrder?.featured_order || 0) + 1;
+        const newOrder = (maxOrderData?.featured_order || 0) + 1;
 
         const { error } = await supabase
           .from("manga")
