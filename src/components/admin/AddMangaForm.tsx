@@ -262,43 +262,12 @@ export const AddMangaForm = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="scrape" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="scrape">سحب من موقع</TabsTrigger>
+      <Tabs defaultValue="manga" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="manga">إضافة مانجا</TabsTrigger>
           <TabsTrigger value="chapter">إضافة فصل</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="scrape" className="mt-6">
-          <div className="space-y-4 rounded-lg border border-border/50 bg-background/50 p-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">سحب مانجا مباشرة من الموقع</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                أدخل رابط صفحة المانجا وسيتم سحب جميع المعلومات والفصول تلقائياً
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="scrapeUrl">رابط المانجا</Label>
-              <Input
-                id="scrapeUrl"
-                type="url"
-                value={scrapeUrl}
-                onChange={(e) => setScrapeUrl(e.target.value)}
-                placeholder="https://lekmanga.net/manga/example"
-                disabled={isScraping}
-              />
-            </div>
-            <Button 
-              type="button" 
-              onClick={handleScrape} 
-              disabled={isScraping}
-              className="w-full"
-            >
-              <Download className="ml-2 h-4 w-4" />
-              {isScraping ? "جاري السحب..." : "سحب المانجا وجميع الفصول"}
-            </Button>
-          </div>
-        </TabsContent>
 
         <TabsContent value="manga" className="mt-6">
           <form onSubmit={handleSubmitManga} className="space-y-6">
