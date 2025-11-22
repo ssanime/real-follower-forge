@@ -159,6 +159,44 @@ serve(async (req) => {
       }
     }
 
+    // Extract manga type (manga / manhwa / manhua)
+    let mangaType: 'manga' | 'manhwa' | 'manhua' = 'manga';
+    const typePatterns = [
+      /<div[^>]*class="[^"]*summary-content[^"]*"[^>]*>\s*(Manhwa|Manhua|Manga)\s*<\/div>/i,
+      /<span[^>]*class="[^"]*type[^"]*"[^>]*>\s*(Manhwa|Manhua|Manga)\s*<\/span>/i,
+      /<a[^>]*href="[^"]*(manga|manhwa|manhua)[^"]*"[^>]*>[^<]*<\/a>/i,
+    ];
+
+    for (const pattern of typePatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        const typeText = match[1].toLowerCase();
+        if (typeText.includes('manhwa')) mangaType = 'manhwa';
+        else if (typeText.includes('manhua')) mangaType = 'manhua';
+        else mangaType = 'manga';
+        break;
+      }
+    }
+
+    // Extract rating if available
+    let rating: number | null = null;
+    const ratingPatterns = [
+      /itemprop="ratingValue"[^>]*>([0-9.]+)<\/span>/i,
+      /<span[^>]*class="[^"]*score[^"]*"[^>]*>([0-9.]+)<\/span>/i,
+      /<div[^>]*class="[^"]*score[^"]*"[^>]*>([0-9.]+)<\/div>/i,
+    ];
+
+    for (const pattern of ratingPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        const value = parseFloat(match[1]);
+        if (!isNaN(value)) {
+          rating = value;
+          break;
+        }
+      }
+    }
+
     // Extract cover image
     let coverImage = '';
     const imagePatterns = [
@@ -205,7 +243,25 @@ serve(async (req) => {
 
     if (existingManga) {
       mangaId = existingManga.id;
-      console.log('Manga already exists, will update chapters for:', mangaId);
+      console.log('Manga already exists, will update metadata and chapters for:', mangaId);
+
+      // Update basic metadata if we scraped better info
+      const { error: updateError } = await supabaseAdmin
+        .from('manga')
+        .update({
+          description: description || null,
+          cover_image_url: coverImage || null,
+          manga_type: mangaType,
+          rating,
+          source_url: sourceUrl,
+          author: extractText(html, 'class="author">', '</') || null,
+          artist: extractText(html, 'class="artist">', '</') || null,
+        })
+        .eq('id', mangaId);
+
+      if (updateError) {
+        console.error('Error updating existing manga:', updateError);
+      }
     } else {
       // Insert manga if it does not exist
       const { data: manga, error: mangaError } = await supabaseAdmin
@@ -214,8 +270,10 @@ serve(async (req) => {
           title,
           description: description || null,
           cover_image_url: coverImage || null,
-          manga_type: 'manga',
+          manga_type: mangaType,
           status: 'ongoing',
+          rating,
+          source_url: sourceUrl,
           author: extractText(html, 'class="author">', '</') || null,
           artist: extractText(html, 'class="artist">', '</') || null,
         })
