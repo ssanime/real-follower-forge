@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { generateMangaSlug, generateChapterSlug } from "@/lib/slug";
 
 export const AddMangaForm = () => {
   const { toast } = useToast();
@@ -114,10 +115,13 @@ export const AddMangaForm = () => {
         .map((t) => t.trim())
         .filter((t) => t);
 
+      const slug = generateMangaSlug(mangaData.title);
+
       const { data: manga, error: mangaError } = await supabase
         .from("manga")
         .insert({
           ...mangaData,
+          slug,
           alternative_titles: altTitlesArray.length > 0 ? altTitlesArray : null,
         })
         .select()
@@ -189,11 +193,15 @@ export const AddMangaForm = () => {
     }
 
     try {
+      const chapterNumber = parseFloat(chapterData.number);
+      const chapterSlug = generateChapterSlug(chapterData.number);
+
       const { data: chapter, error: chapterError } = await supabase
         .from("chapters")
         .insert({
           manga_id: selectedMangaId,
-          chapter_number: parseFloat(chapterData.number),
+          chapter_number: chapterNumber,
+          slug: chapterSlug,
           title: chapterData.title || `الفصل ${chapterData.number}`,
           release_date: new Date().toISOString(),
         })

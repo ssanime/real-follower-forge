@@ -24,8 +24,8 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/browse/:type" element={<Browse />} />
-          <Route path="/manga/:id" element={<MangaDetails />} />
-          <Route path="/chapter/:id" element={<ChapterReader />} />
+          <Route path="/manga/:slug" element={<MangaDetails />} />
+          <Route path="/manga/:mangaSlug/:chapterSlug" element={<ChapterReader />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
