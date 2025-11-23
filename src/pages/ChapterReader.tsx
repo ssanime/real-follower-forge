@@ -13,79 +13,90 @@ interface Page {
 
 interface Chapter {
   id: string;
+  slug: string;
   title: string | null;
   chapter_number: number;
   manga_id: string;
 }
 
 interface Manga {
+  id: string;
+  slug: string;
   title: string;
 }
 
+
 export default function ChapterReader() {
-  const { id } = useParams<{ id: string }>();
+  const { mangaSlug, chapterSlug } = useParams<{ mangaSlug: string; chapterSlug: string }>();
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [manga, setManga] = useState<Manga | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(true);
-  const [nextChapter, setNextChapter] = useState<string | null>(null);
-  const [prevChapter, setPrevChapter] = useState<string | null>(null);
+  const [nextChapter, setNextChapter] = useState<Chapter | null>(null);
+  const [prevChapter, setPrevChapter] = useState<Chapter | null>(null);
   const [showNav, setShowNav] = useState(true);
 
   useEffect(() => {
     const fetchChapterData = async () => {
-      if (!id) return;
+      if (!mangaSlug || !chapterSlug) return;
 
       setLoading(true);
 
+      // Fetch manga by slug first
+      const { data: mangaData } = await supabase
+        .from("manga")
+        .select("id, slug, title")
+        .eq("slug", mangaSlug)
+        .maybeSingle();
+
+      if (!mangaData) {
+        setLoading(false);
+        return;
+      }
+
+      setManga(mangaData);
+
+      // Fetch chapter by slug within this manga
       const { data: chapterData } = await supabase
         .from("chapters")
         .select("*")
-        .eq("id", id)
+        .eq("manga_id", mangaData.id)
+        .eq("slug", chapterSlug)
         .maybeSingle();
 
       if (chapterData) {
         setChapter(chapterData);
 
-        // Fetch manga title
-        const { data: mangaData } = await supabase
-          .from("manga")
-          .select("title")
-          .eq("id", chapterData.manga_id)
-          .maybeSingle();
-        
-        if (mangaData) setManga(mangaData);
-
-        // Fetch next chapter
+        // Fetch next chapter (by number)
         const { data: nextData } = await supabase
           .from("chapters")
-          .select("id")
-          .eq("manga_id", chapterData.manga_id)
+          .select("id, slug, chapter_number")
+          .eq("manga_id", mangaData.id)
           .gt("chapter_number", chapterData.chapter_number)
           .order("chapter_number", { ascending: true })
           .limit(1)
           .maybeSingle();
 
-        if (nextData) setNextChapter(nextData.id);
+        if (nextData) setNextChapter(nextData as Chapter);
 
-        // Fetch previous chapter
+        // Fetch previous chapter (by number)
         const { data: prevData } = await supabase
           .from("chapters")
-          .select("id")
-          .eq("manga_id", chapterData.manga_id)
+          .select("id, slug, chapter_number")
+          .eq("manga_id", mangaData.id)
           .lt("chapter_number", chapterData.chapter_number)
           .order("chapter_number", { ascending: false })
           .limit(1)
           .maybeSingle();
 
-        if (prevData) setPrevChapter(prevData.id);
+        if (prevData) setPrevChapter(prevData as Chapter);
       }
 
       // Fetch pages
       const { data: pagesData } = await supabase
         .from("chapter_pages")
         .select("*")
-        .eq("chapter_id", id)
+        .eq("chapter_id", chapterData?.id)
         .order("page_number", { ascending: true });
 
       if (pagesData) setPages(pagesData);
@@ -94,7 +105,7 @@ export default function ChapterReader() {
     };
 
     fetchChapterData();
-  }, [id]);
+  }, [mangaSlug, chapterSlug]);
 
   if (loading) {
     return (
@@ -128,7 +139,7 @@ export default function ChapterReader() {
         <div className="bg-black/90 backdrop-blur-sm border-b border-white/10">
           <div className="container mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
-              <Link to={`/manga/${chapter.manga_id}`}>
+              <Link to={`/manga/${manga?.slug || mangaSlug}`}>
                 <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
                   <Home className="w-4 h-4 ml-2" />
                   العودة
@@ -198,7 +209,7 @@ export default function ChapterReader() {
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-center gap-4">
               {prevChapter ? (
-                <Link to={`/chapter/${prevChapter}`} className="flex-1 max-w-xs">
+                <Link to={`/manga/${manga?.slug || mangaSlug}/${prevChapter.slug}`} className="flex-1 max-w-xs">
                   <Button 
                     variant="outline" 
                     className="w-full border-white/20 text-white hover:bg-white/10"
@@ -211,14 +222,14 @@ export default function ChapterReader() {
                 <div className="flex-1 max-w-xs" />
               )}
 
-              <Link to={`/manga/${chapter.manga_id}`}>
+              <Link to={`/manga/${manga?.slug || mangaSlug}`}>
                 <Button variant="default" size="sm">
                   قائمة الفصول
                 </Button>
               </Link>
 
               {nextChapter ? (
-                <Link to={`/chapter/${nextChapter}`} className="flex-1 max-w-xs">
+                <Link to={`/manga/${manga?.slug || mangaSlug}/${nextChapter.slug}`} className="flex-1 max-w-xs">
                   <Button 
                     variant="outline"
                     className="w-full border-white/20 text-white hover:bg-white/10"

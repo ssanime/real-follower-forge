@@ -74,8 +74,8 @@ const Index = () => {
             <>
               <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {latestManga.map((manga) => (
-                  <Link key={manga.id} to={`/manga/${manga.id}`}>
-                    <Card className="group overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:scale-105 hover:shadow-[var(--shadow-glow)]">
+                   <Link key={manga.id} to={`/manga/${manga.slug}`}>
+                     <Card className="group overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:scale-105 hover:shadow-[var(--shadow-glow)]">
                       <div className="aspect-[3/4] overflow-hidden">
                         <img
                           src={manga.cover_image_url || "/placeholder.svg"}

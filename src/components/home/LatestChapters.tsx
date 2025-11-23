@@ -29,6 +29,7 @@ export const LatestChapters = () => {
           `*,
            manga (
              id,
+             slug,
              title,
              cover_image_url,
              manga_type
@@ -75,7 +76,7 @@ export const LatestChapters = () => {
 
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {latestChapters.map((chapter) => (
-          <Link key={chapter.id} to={`/chapter/${chapter.id}`}>
+          <Link key={chapter.id} to={`/manga/${chapter.manga?.slug}/${chapter.slug}`}>
             <Card className="group flex items-center gap-4 border-border/50 bg-card/50 p-4 backdrop-blur-sm transition-all hover:scale-[1.02] hover:shadow-[var(--shadow-glow)]">
               <div className="h-20 w-16 flex-shrink-0 overflow-hidden rounded-lg">
                 <img

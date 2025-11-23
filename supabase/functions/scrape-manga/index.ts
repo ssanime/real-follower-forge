@@ -310,21 +310,42 @@ serve(async (req) => {
       }
     }
 
-    // Extract chapters - multiple strategies for better coverage
+    // Extract chapters - specifically from main version-chap list to ensure we get ALL chapters
     let chapterLinks: string[] = [];
-    
-    // Strategy 1: Look for wp-manga-chapter class (most common)
-    const chapterItemPattern = /<li[^>]*class="[^"]*wp-manga-chapter[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
-    let chapterItems = Array.from(html.matchAll(chapterItemPattern));
-    
-    console.log('Strategy 1 - Found wp-manga-chapter items:', chapterItems.length);
-    
-    for (const item of chapterItems) {
-      const hrefMatch = item[1].match(/<a[^>]+href="([^"]+)"[^>]*>/i);
-      if (hrefMatch && hrefMatch[1]) {
-        const url = hrefMatch[1].trim();
+
+    // Strategy 0: Target the main chapter list container directly
+    const mainChapContainerPattern = /<ul[^>]*class="[^"]*main[^"]*version-chap[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi;
+    const mainChapMatch = mainChapContainerPattern.exec(html);
+
+    if (mainChapMatch && mainChapMatch[1]) {
+      const mainHtml = mainChapMatch[1];
+      const liPattern = /<li[^>]*class="[^"]*wp-manga-chapter[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>/gi;
+      const mainLinks = Array.from(mainHtml.matchAll(liPattern));
+
+      for (const m of mainLinks) {
+        const url = m[1].trim();
         if (url.startsWith('http') && !chapterLinks.includes(url)) {
           chapterLinks.push(url);
+        }
+      }
+
+      console.log('Strategy 0 - main version-chap list found chapters:', chapterLinks.length);
+    }
+
+    // Strategy 1: Look for wp-manga-chapter class (most common)
+    if (chapterLinks.length === 0) {
+      const chapterItemPattern = /<li[^>]*class="[^"]*wp-manga-chapter[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+      let chapterItems = Array.from(html.matchAll(chapterItemPattern));
+      
+      console.log('Strategy 1 - Found wp-manga-chapter items:', chapterItems.length);
+      
+      for (const item of chapterItems) {
+        const hrefMatch = item[1].match(/<a[^>]+href="([^"]+)"[^>]*>/i);
+        if (hrefMatch && hrefMatch[1]) {
+          const url = hrefMatch[1].trim();
+          if (url.startsWith('http') && !chapterLinks.includes(url)) {
+            chapterLinks.push(url);
+          }
         }
       }
     }
@@ -348,20 +369,6 @@ serve(async (req) => {
         }
         console.log('Strategy 2 - Found links:', chapterLinks.length);
       }
-    }
-    
-    // Strategy 3: Look for any links containing 'chapter' in href
-    if (chapterLinks.length === 0) {
-      console.log('Strategy 3 - Looking for any chapter links...');
-      const anyChapterPattern = /<a[^>]+href="([^"]+chapter[^"]+)"[^>]*>/gi;
-      const matches = Array.from(html.matchAll(anyChapterPattern));
-      for (const match of matches) {
-        const url = match[1].trim();
-        if (url.startsWith('http') && !chapterLinks.includes(url)) {
-          chapterLinks.push(url);
-        }
-      }
-      console.log('Strategy 3 - Found links:', chapterLinks.length);
     }
     
     // If no chapters found with wp-manga-chapter, try alternative patterns

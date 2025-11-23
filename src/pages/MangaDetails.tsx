@@ -9,6 +9,7 @@ import Navigation from "@/components/Navigation";
 
 interface Manga {
   id: string;
+  slug: string;
   title: string;
   description: string | null;
   cover_image_url: string | null;
@@ -34,7 +35,7 @@ interface Chapter {
 }
 
 export default function MangaDetails() {
-  const { id } = useParams<{ id: string }>();
+  const { slug } = useParams<{ slug: string }>();
   const [manga, setManga] = useState<Manga | null>(null);
   const [genres, setGenres] = useState<Genre[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -42,14 +43,14 @@ export default function MangaDetails() {
 
   useEffect(() => {
     const fetchMangaDetails = async () => {
-      if (!id) return;
+      if (!slug) return;
 
       setLoading(true);
 
       const { data: mangaData } = await supabase
         .from("manga")
         .select("*")
-        .eq("id", id)
+        .eq("slug", slug)
         .maybeSingle();
 
       if (mangaData) setManga(mangaData);
@@ -57,7 +58,7 @@ export default function MangaDetails() {
       const { data: genresData } = await supabase
         .from("manga_genres")
         .select("genre_id, genres(id, name, slug)")
-        .eq("manga_id", id);
+        .eq("manga_id", mangaData.id);
 
       if (genresData) {
         const genresList = genresData
@@ -69,7 +70,7 @@ export default function MangaDetails() {
       const { data: chaptersData } = await supabase
         .from("chapters")
         .select("*")
-        .eq("manga_id", id)
+        .eq("manga_id", mangaData.id)
         .order("chapter_number", { ascending: false });
 
       if (chaptersData) setChapters(chaptersData);
@@ -78,7 +79,7 @@ export default function MangaDetails() {
     };
 
     fetchMangaDetails();
-  }, [id]);
+  }, [slug]);
 
   if (loading) {
     return (
@@ -217,7 +218,7 @@ export default function MangaDetails() {
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {chapters.map((chapter) => (
-                    <Link key={chapter.id} to={`/chapter/${chapter.id}`}>
+                    <Link key={chapter.id} to={`/manga/${manga.slug}/${chapter.chapter_number}`}>
                       <Card className="hover:bg-accent/50 transition-all hover-scale cursor-pointer">
                         <CardContent className="p-4 flex items-center justify-between">
                           <div className="flex items-center gap-3">

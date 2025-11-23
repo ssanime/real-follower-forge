@@ -53,6 +53,7 @@ export type Database = {
           id: string
           manga_id: string
           release_date: string | null
+          slug: string | null
           title: string | null
           views: number | null
         }
@@ -62,6 +63,7 @@ export type Database = {
           id?: string
           manga_id: string
           release_date?: string | null
+          slug?: string | null
           title?: string | null
           views?: number | null
         }
@@ -71,6 +73,7 @@ export type Database = {
           id?: string
           manga_id?: string
           release_date?: string | null
+          slug?: string | null
           title?: string | null
           views?: number | null
         }
@@ -120,6 +123,7 @@ export type Database = {
           rating: number | null
           rating_count: number | null
           release_year: number | null
+          slug: string | null
           source_url: string | null
           status: Database["public"]["Enums"]["manga_status"] | null
           studio: string | null
@@ -141,6 +145,7 @@ export type Database = {
           rating?: number | null
           rating_count?: number | null
           release_year?: number | null
+          slug?: string | null
           source_url?: string | null
           status?: Database["public"]["Enums"]["manga_status"] | null
           studio?: string | null
@@ -162,6 +167,7 @@ export type Database = {
           rating?: number | null
           rating_count?: number | null
           release_year?: number | null
+          slug?: string | null
           source_url?: string | null
           status?: Database["public"]["Enums"]["manga_status"] | null
           studio?: string | null

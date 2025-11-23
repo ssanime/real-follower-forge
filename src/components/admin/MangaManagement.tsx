@@ -259,7 +259,7 @@ export const MangaManagement = () => {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => window.open(`/manga/${manga.id}`, '_blank')}
+                        onClick={() => window.open(`/manga/${manga.slug}`, '_blank')}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
