@@ -282,23 +282,38 @@ serve(async (req) => {
       genresCount: genreMatches.length 
     });
 
-    // Check if manga already exists
+    // Generate slug for manga
+    const generateSlug = (text: string): string => {
+      return text
+        .trim()
+        .toLowerCase()
+        .replace(/[^\w\u0600-\u06FF]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    };
+
+    const mangaSlug = generateSlug(title);
+    console.log(`📝 Generated manga slug: ${mangaSlug}`);
+
+    // Check if manga already exists (by slug or title)
     const { data: existingManga } = await supabaseAdmin
       .from('manga')
-      .select('id')
-      .eq('title', title)
+      .select('id, slug')
+      .or(`slug.eq.${mangaSlug},title.eq.${title}`)
       .maybeSingle();
 
     let mangaId: string;
+    let finalSlug = mangaSlug;
 
     if (existingManga) {
       mangaId = existingManga.id;
-      console.log('Manga already exists, will update metadata and chapters for:', mangaId);
+      finalSlug = existingManga.slug || mangaSlug;
+      console.log('📚 Manga already exists, will update metadata and chapters for:', mangaId);
 
       // Update basic metadata if we scraped better info
       const { error: updateError } = await supabaseAdmin
         .from('manga')
         .update({
+          slug: finalSlug,
           description: description || null,
           cover_image_url: coverImage || null,
           manga_type: mangaType,
@@ -306,11 +321,12 @@ serve(async (req) => {
           source_url: sourceUrl,
           author: extractText(html, 'class="author">', '</') || null,
           artist: extractText(html, 'class="artist">', '</') || null,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', mangaId);
 
       if (updateError) {
-        console.error('Error updating existing manga:', updateError);
+        console.error('❌ Error updating existing manga:', updateError);
       }
     } else {
       // Insert manga if it does not exist
@@ -318,6 +334,7 @@ serve(async (req) => {
         .from('manga')
         .insert({
           title,
+          slug: mangaSlug,
           description: description || null,
           cover_image_url: coverImage || null,
           manga_type: mangaType,
@@ -331,12 +348,13 @@ serve(async (req) => {
         .single();
 
       if (mangaError) {
-        console.error('Error inserting manga:', mangaError);
+        console.error('❌ Error inserting manga:', mangaError);
         throw mangaError;
       }
 
       mangaId = manga.id;
-      console.log('Manga inserted:', mangaId);
+      finalSlug = manga.slug;
+      console.log('✅ Manga inserted:', mangaId, 'with slug:', finalSlug);
     }
 
     // Insert genres
@@ -402,7 +420,7 @@ serve(async (req) => {
     
     // Strategy 2: If no chapters found, try broader patterns
     if (chapterLinks.length === 0) {
-      console.log('Strategy 2 - Trying broader chapter patterns...');
+      console.log('📖 Strategy 2 - Trying broader chapter patterns...');
       
       // Look for chapter list container
       const chapterListPattern = /<div[^>]*class="[^"]*version-chap[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
@@ -417,24 +435,51 @@ serve(async (req) => {
             chapterLinks.push(url);
           }
         }
-        console.log('Strategy 2 - Found links:', chapterLinks.length);
+        console.log('📖 Strategy 2 - Found links:', chapterLinks.length);
       }
     }
     
-    // If no chapters found with wp-manga-chapter, try alternative patterns
+    // Strategy 3: OlympusStaff and similar sites - look for chapter links in different patterns
     if (chapterLinks.length === 0) {
-      console.log('No wp-manga-chapter found, trying alternative patterns...');
+      console.log('📖 Strategy 3 - Trying OlympusStaff/TeamX patterns...');
       
-      // Try finding chapter list container
+      // Pattern for OlympusStaff style sites
+      const olympusPatterns = [
+        /<a[^>]+href="([^"]+\/series\/[^"]+\/\d+[^"]*)"[^>]*>/gi,
+        /<a[^>]+href="([^"]+\/chapter\/[^"]+)"[^>]*>/gi,
+        /<div[^>]*class="[^"]*eplister[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>/gi,
+        /<li[^>]*data-num="[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>/gi,
+      ];
+      
+      for (const pattern of olympusPatterns) {
+        const matches = Array.from(html.matchAll(pattern));
+        for (const match of matches) {
+          const url = match[1].trim();
+          if (url.startsWith('http') && !chapterLinks.includes(url) && !url.includes('/manga/') && !url.includes('/series/') || url.match(/\/\d+\/?$/)) {
+            chapterLinks.push(url);
+          }
+        }
+        if (chapterLinks.length > 0) {
+          console.log(`📖 Strategy 3 - Found ${chapterLinks.length} chapter links`);
+          break;
+        }
+      }
+    }
+    
+    // Strategy 4: Generic patterns for other sites
+    if (chapterLinks.length === 0) {
+      console.log('📖 Strategy 4 - Trying generic chapter patterns...');
+      
       const containerPatterns = [
         /<ul[^>]*class="[^"]*version-chap[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
         /<div[^>]*class="[^"]*chapter-list[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+        /<div[^>]*class="[^"]*chapters[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+        /<div[^>]*id="[^"]*chapters[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
       ];
       
       for (const pattern of containerPatterns) {
         const match = html.match(pattern);
         if (match && match[0]) {
-          // Extract all links from container
           const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>/gi;
           const links = Array.from(match[0].matchAll(linkPattern));
           for (const link of links) {
@@ -446,6 +491,7 @@ serve(async (req) => {
           if (chapterLinks.length > 0) break;
         }
       }
+      console.log(`📖 Strategy 4 - Found ${chapterLinks.length} chapter links`);
     }
 
     console.log('Found chapter links:', chapterLinks.length);
@@ -521,6 +567,7 @@ serve(async (req) => {
         }
 
         const chapterNumber = parseFloat(chapterTitle.match(/\d+(\.\d+)?/)?.[0] || String(i + 1));
+        const chapterSlug = String(chapterNumber).replace(/[^0-9.]+/g, '');
 
         // Check if chapter exists for this manga
         const { data: existingChapter } = await supabaseAdmin
@@ -531,7 +578,8 @@ serve(async (req) => {
           .maybeSingle();
 
         if (existingChapter) {
-          console.log(`Chapter ${chapterNumber} already exists, skipping`);
+          console.log(`📖 Chapter ${chapterNumber} already exists, skipping`);
+          successfulChapters++; // Count existing as success for accurate reporting
           continue;
         }
 
@@ -541,6 +589,7 @@ serve(async (req) => {
             manga_id: mangaId,
             title: chapterTitle || `الفصل ${chapterNumber}`,
             chapter_number: chapterNumber,
+            slug: chapterSlug,
           })
           .select()
           .single();
@@ -586,11 +635,33 @@ serve(async (req) => {
               imageUrls = matches
                 .map(m => m[1])
                 .filter(url => {
-                  // Filter for valid image URLs from lekmanga domains
+                  // Filter for valid image URLs from known domains
                   return url.startsWith('http') && 
-                         (url.includes('lekmanga') || url.includes('tempsolo'));
+                         (url.includes('lekmanga') || url.includes('tempsolo') || 
+                          url.includes('olympus') || url.includes('teamx') ||
+                          url.includes('cdn') || url.includes('uploads'));
                 });
-              console.log(`Found ${imageUrls.length} images with broad search`);
+              console.log(`📷 Found ${imageUrls.length} images with broad search`);
+            }
+          }
+          
+          // Strategy 5: OlympusStaff/TeamX specific patterns
+          if (imageUrls.length === 0) {
+            const olympusImgPattern = /<img[^>]*class="[^"]*ts-main-image[^"]*"[^>]*src="([^"]+)"[^>]*>/gi;
+            matches = Array.from(chapterHtml.matchAll(olympusImgPattern));
+            if (matches.length > 0) {
+              imageUrls = matches.map(m => m[1]).filter(url => url.startsWith('http'));
+              console.log(`📷 Found ${imageUrls.length} images with ts-main-image pattern`);
+            }
+          }
+          
+          // Strategy 6: data-src lazy loading pattern
+          if (imageUrls.length === 0) {
+            const lazySrcPattern = /<img[^>]*data-src="([^"]+\.(?:jpg|jpeg|png|webp|gif)[^"]*)"[^>]*>/gi;
+            matches = Array.from(chapterHtml.matchAll(lazySrcPattern));
+            if (matches.length > 0) {
+              imageUrls = matches.map(m => m[1]).filter(url => url.startsWith('http'));
+              console.log(`📷 Found ${imageUrls.length} images with data-src pattern`);
             }
           }
           
