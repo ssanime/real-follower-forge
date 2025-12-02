@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, BookOpen, Star, Calendar, User, Palette, ArrowRight } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import { SEOHead, generateMangaJsonLd } from "@/components/SEOHead";
 
 interface Manga {
   id: string;
@@ -103,8 +104,20 @@ export default function MangaDetails() {
     );
   }
 
+  const baseUrl = window.location.origin;
+  const canonicalUrl = `${baseUrl}/manga/${manga.slug}`;
+  const jsonLd = generateMangaJsonLd(manga);
+
   return (
     <div className="min-h-screen bg-background" dir="rtl">
+      <SEOHead
+        title={`${manga.title} - قراءة مترجمة`}
+        description={manga.description || `قراءة ${manga.title} مترجمة بجودة عالية - جميع الفصول متاحة`}
+        canonicalUrl={canonicalUrl}
+        ogImage={manga.cover_image_url || undefined}
+        ogType="article"
+        jsonLd={jsonLd}
+      />
       <Navigation />
       {/* Hero Section with Cover */}
       <div className="relative h-96 overflow-hidden border-b">
