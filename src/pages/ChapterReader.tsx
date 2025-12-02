@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowRight, ArrowLeft, Home, Menu } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { SEOHead, generateChapterJsonLd } from "@/components/SEOHead";
 
 interface Page {
   id: string;
@@ -128,8 +129,24 @@ export default function ChapterReader() {
     );
   }
 
+  const baseUrl = window.location.origin;
+  const canonicalUrl = `${baseUrl}/manga/${manga?.slug}/${chapter.slug}`;
+  const jsonLd = generateChapterJsonLd({
+    title: chapter.title,
+    chapter_number: chapter.chapter_number,
+    manga_title: manga?.title || "",
+    manga_slug: manga?.slug || "",
+  });
+
   return (
     <div className="min-h-screen bg-black" dir="rtl">
+      <SEOHead
+        title={`${chapter.title || `الفصل ${chapter.chapter_number}`} - ${manga?.title}`}
+        description={`قراءة ${chapter.title || `الفصل ${chapter.chapter_number}`} من ${manga?.title} مترجم`}
+        canonicalUrl={canonicalUrl}
+        ogType="article"
+        jsonLd={jsonLd}
+      />
       {/* Top Navigation Bar */}
       <div 
         className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ${

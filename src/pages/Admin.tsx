@@ -10,7 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MangaManagement } from "@/components/admin/MangaManagement";
 import { GenreManagement } from "@/components/admin/GenreManagement";
 import { AddMangaForm } from "@/components/admin/AddMangaForm";
+import { SourceManagement } from "@/components/admin/SourceManagement";
+import { CatalogScraper } from "@/components/admin/CatalogScraper";
 import Navigation from "@/components/Navigation";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -19,6 +28,8 @@ const Admin = () => {
   const [sourceUrl, setSourceUrl] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [sources, setSources] = useState<any[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState<string>("");
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -57,6 +68,26 @@ const Admin = () => {
 
     checkAdminAccess();
   }, [navigate, toast]);
+
+  useEffect(() => {
+    const fetchSources = async () => {
+      const { data } = await supabase
+        .from("scraper_sources")
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+      if (data) setSources(data);
+    };
+    if (isAdmin) fetchSources();
+  }, [isAdmin]);
+
+  const handleSourceChange = (sourceId: string) => {
+    setSelectedSourceId(sourceId);
+    const source = sources.find((s) => s.id === sourceId);
+    if (source) {
+      // Don't auto-fill, just select the source
+    }
+  };
 
   const handleScrapeFromUrl = async () => {
     if (!sourceUrl.trim()) {
@@ -117,8 +148,10 @@ const Admin = () => {
         </div>
 
         <Tabs defaultValue="scraper" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="scraper">السحب التلقائي</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="scraper">السحب من رابط</TabsTrigger>
+            <TabsTrigger value="catalog">سحب الكتالوج</TabsTrigger>
+            <TabsTrigger value="sources">إدارة المصادر</TabsTrigger>
             <TabsTrigger value="add-content">إضافة محتوى</TabsTrigger>
             <TabsTrigger value="manage">إدارة المانجا</TabsTrigger>
             <TabsTrigger value="genres">التصنيفات</TabsTrigger>
@@ -133,14 +166,29 @@ const Admin = () => {
                 <div>
                   <h2 className="text-xl font-bold text-foreground">السحب من رابط</h2>
                   <p className="text-sm text-muted-foreground">
-                    أدخل رابط موقع المانجا لسحب البيانات تلقائيًا
+                    اختر المصدر ثم أدخل رابط المانجا لسحب البيانات تلقائيًا
                   </p>
                 </div>
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">اختر المصدر (اختياري)</label>
+                  <Select value={selectedSourceId} onValueChange={handleSourceChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر مصدرًا..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sources.map((source) => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name} - {source.base_url}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Input
-                  placeholder="https://example.com/manga/..."
+                  placeholder="https://lekmanga.net/manga/..."
                   value={sourceUrl}
                   onChange={(e) => setSourceUrl(e.target.value)}
                   className="bg-background/50"
@@ -155,6 +203,14 @@ const Admin = () => {
                 </Button>
               </div>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="catalog" className="mt-6">
+            <CatalogScraper />
+          </TabsContent>
+
+          <TabsContent value="sources" className="mt-6">
+            <SourceManagement />
           </TabsContent>
 
           <TabsContent value="add-content" className="mt-6">

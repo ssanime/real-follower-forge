@@ -118,80 +118,118 @@ serve(async (req) => {
     };
 
     // Extract manga information with multiple patterns
+    console.log('📊 Starting data extraction...');
+    
     let title = '';
     
     // Try different title patterns
     const titlePatterns = [
-      /<h1[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/h1>/i,
-      /<h1[^>]*class="[^"]*post-title[^"]*"[^>]*>([^<]+)<\/h1>/i,
-      /<h1[^>]*>([^<]+)<\/h1>/i,
-      /<meta\s+property="og:title"\s+content="([^"]+)"/i,
+      { pattern: /<h1[^>]*class="[^"]*post-title[^"]*"[^>]*>([^<]+)<\/h1>/i, name: 'post-title' },
+      { pattern: /<h1[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/h1>/i, name: 'entry-title' },
+      { pattern: /<div[^>]*class="[^"]*post-title[^"]*"[^>]*>[\s\S]*?<h1[^>]*>([^<]+)<\/h1>/i, name: 'div-post-title' },
+      { pattern: /<h1[^>]*>([^<]+)<\/h1>/i, name: 'h1-general' },
+      { pattern: /<meta\s+property="og:title"\s+content="([^"]+)"/i, name: 'og:title' },
     ];
 
-    for (const pattern of titlePatterns) {
+    for (const { pattern, name } of titlePatterns) {
       const match = html.match(pattern);
       if (match && match[1]) {
         title = cleanText(match[1]);
-        if (title && !title.includes('navbar') && title.length > 2) break;
+        if (title && !title.includes('navbar') && !title.includes('الرئيسية') && title.length > 2) {
+          console.log(`✅ Title found via ${name}: "${title}"`);
+          break;
+        }
       }
     }
 
     // Fallback to page title
-    if (!title || title.length < 3) {
-      title = cleanText(extractText(html, '<title>', '</title>').split('|')[0].split('-')[0]);
+    if (!title || title.length < 3 || title === 'الرئيسية') {
+      const pageTitle = extractText(html, '<title>', '</title>');
+      title = cleanText(pageTitle.split('|')[0].split('-')[0].split('–')[0]);
+      console.log(`📝 Title fallback to page title: "${title}"`);
     }
 
-    // Extract description
+    // Extract description with better patterns
     let description = '';
     const descPatterns = [
-      /<meta\s+name="description"\s+content="([^"]+)"/i,
-      /<meta\s+property="og:description"\s+content="([^"]+)"/i,
-      /<div[^>]*class="[^"]*summary[^"]*"[^>]*>([^<]+)<\/div>/i,
-      /<div[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]{0,500}?)<\/div>/i,
-      /<p[^>]*class="[^"]*story[^"]*"[^>]*>([^<]+)<\/p>/i,
+      { pattern: /<div[^>]*class="[^"]*summary__content[^"]*"[^>]*>([\s\S]*?)<\/div>/i, name: 'summary__content' },
+      { pattern: /<div[^>]*class="[^"]*description-summary[^"]*"[^>]*>([\s\S]*?)<\/div>/i, name: 'description-summary' },
+      { pattern: /<div[^>]*class="[^"]*manga-excerpt[^"]*"[^>]*>([\s\S]*?)<\/div>/i, name: 'manga-excerpt' },
+      { pattern: /<p[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/p>/i, name: 'p-description' },
+      { pattern: /<meta\s+property="og:description"\s+content="([^"]+)"/i, name: 'og:description' },
+      { pattern: /<meta\s+name="description"\s+content="([^"]+)"/i, name: 'meta-description' },
     ];
 
-    for (const pattern of descPatterns) {
+    for (const { pattern, name } of descPatterns) {
       const match = html.match(pattern);
       if (match && match[1]) {
         description = cleanText(match[1]);
-        if (description && description.length > 20) break;
+        if (description && description.length > 30 && !description.includes('افضل موقع')) {
+          console.log(`✅ Description found via ${name}: "${description.substring(0, 80)}..."`);
+          break;
+        }
       }
     }
 
-    // Extract manga type (manga / manhwa / manhua)
+    // Extract manga type (manga / manhwa / manhua) with better detection
     let mangaType: 'manga' | 'manhwa' | 'manhua' = 'manga';
     const typePatterns = [
-      /<div[^>]*class="[^"]*summary-content[^"]*"[^>]*>\s*(Manhwa|Manhua|Manga)\s*<\/div>/i,
-      /<span[^>]*class="[^"]*type[^"]*"[^>]*>\s*(Manhwa|Manhua|Manga)\s*<\/span>/i,
-      /<a[^>]*href="[^"]*(manga|manhwa|manhua)[^"]*"[^>]*>[^<]*<\/a>/i,
+      { pattern: /<div[^>]*class="[^"]*post-content[^"]*"[^>]*>[\s\S]*?<div[^>]*class="[^"]*summary-content[^"]*"[^>]*>\s*(Manhwa|Manhua|Manga|مانهوا|مانها|مانجا)\s*<\/div>/gi, name: 'summary-content' },
+      { pattern: /<a[^>]*class="[^"]*manga-type[^"]*"[^>]*>([^<]+)<\/a>/i, name: 'manga-type-link' },
+      { pattern: /<span[^>]*class="[^"]*type[^"]*"[^>]*>\s*(Manhwa|Manhua|Manga|مانهوا|مانها|مانجا)\s*<\/span>/i, name: 'type-span' },
+      { pattern: /نوع[\s:]+(?:<[^>]*>)?\s*(مانهوا|مانها|مانجا|Manhwa|Manhua|Manga)/i, name: 'type-text' },
+      { pattern: /Type[\s:]+(?:<[^>]*>)?\s*(Manhwa|Manhua|Manga)/i, name: 'type-english' },
     ];
 
-    for (const pattern of typePatterns) {
+    for (const { pattern, name } of typePatterns) {
       const match = html.match(pattern);
       if (match && match[1]) {
         const typeText = match[1].toLowerCase();
-        if (typeText.includes('manhwa')) mangaType = 'manhwa';
-        else if (typeText.includes('manhua')) mangaType = 'manhua';
-        else mangaType = 'manga';
-        break;
+        if (typeText.includes('manhwa') || typeText.includes('مانهوا')) {
+          mangaType = 'manhwa';
+          console.log(`✅ Type detected via ${name}: manhwa`);
+          break;
+        } else if (typeText.includes('manhua') || typeText.includes('مانها')) {
+          mangaType = 'manhua';
+          console.log(`✅ Type detected via ${name}: manhua`);
+          break;
+        } else if (typeText.includes('manga') || typeText.includes('مانجا')) {
+          mangaType = 'manga';
+          console.log(`✅ Type detected via ${name}: manga`);
+          break;
+        }
       }
     }
 
-    // Extract rating if available
+    // Also check URL for type hints
+    if (mangaType === 'manga') {
+      if (sourceUrl.toLowerCase().includes('manhwa')) {
+        mangaType = 'manhwa';
+        console.log('📝 Type detected from URL: manhwa');
+      } else if (sourceUrl.toLowerCase().includes('manhua')) {
+        mangaType = 'manhua';
+        console.log('📝 Type detected from URL: manhua');
+      }
+    }
+
+    // Extract rating with better patterns
     let rating: number | null = null;
     const ratingPatterns = [
-      /itemprop="ratingValue"[^>]*>([0-9.]+)<\/span>/i,
-      /<span[^>]*class="[^"]*score[^"]*"[^>]*>([0-9.]+)<\/span>/i,
-      /<div[^>]*class="[^"]*score[^"]*"[^>]*>([0-9.]+)<\/div>/i,
+      { pattern: /itemprop="ratingValue"[^>]*content="([0-9.]+)"/i, name: 'schema-rating' },
+      { pattern: /itemprop="ratingValue"[^>]*>([0-9.]+)<\/span>/i, name: 'schema-rating-span' },
+      { pattern: /<span[^>]*class="[^"]*score[^"]*"[^>]*>[\s\n]*([0-9.]+)[\s\n]*<\/span>/i, name: 'score-span' },
+      { pattern: /<div[^>]*class="[^"]*total_votes[^"]*"[^>]*>[\s\n]*([0-9.]+)[\s\n]*<\/div>/i, name: 'total_votes' },
+      { pattern: /<span[^>]*class="[^"]*num[^"]*"[^>]*>[\s\n]*([0-9.]+)[\s\n]*<\/span>/i, name: 'num-span' },
+      { pattern: /rating[^>]*>[\s\n]*([0-9.]+)[\s\n]*</i, name: 'rating-general' },
     ];
 
-    for (const pattern of ratingPatterns) {
+    for (const { pattern, name } of ratingPatterns) {
       const match = html.match(pattern);
       if (match && match[1]) {
         const value = parseFloat(match[1]);
-        if (!isNaN(value)) {
+        if (!isNaN(value) && value > 0 && value <= 10) {
           rating = value;
+          console.log(`✅ Rating found via ${name}: ${rating}`);
           break;
         }
       }
@@ -200,37 +238,49 @@ serve(async (req) => {
     // Extract cover image
     let coverImage = '';
     const imagePatterns = [
-      /<meta\s+property="og:image"\s+content="([^"]+)"/i,
-      /<img[^>]*class="[^"]*thumbnail[^"]*"[^>]*src="([^"]+)"/i,
-      /<img[^>]*class="[^"]*cover[^"]*"[^>]*src="([^"]+)"/i,
-      /<div[^>]*class="[^"]*post-thumbnail[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i,
+      { pattern: /<div[^>]*class="[^"]*summary_image[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i, name: 'summary_image' },
+      { pattern: /<div[^>]*class="[^"]*tab-summary[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i, name: 'tab-summary' },
+      { pattern: /<img[^>]*class="[^"]*wp-post-image[^"]*"[^>]*src="([^"]+)"/i, name: 'wp-post-image' },
+      { pattern: /<meta\s+property="og:image"\s+content="([^"]+)"/i, name: 'og:image' },
+      { pattern: /<img[^>]*class="[^"]*thumbnail[^"]*"[^>]*src="([^"]+)"/i, name: 'thumbnail' },
     ];
 
-    for (const pattern of imagePatterns) {
+    for (const { pattern, name } of imagePatterns) {
       const match = html.match(pattern);
-      if (match && match[1] && match[1].startsWith('http')) {
+      if (match && match[1] && match[1].startsWith('http') && !match[1].includes('logo') && !match[1].includes('TeamX')) {
         coverImage = match[1];
+        console.log(`✅ Cover image found via ${name}: ${coverImage.substring(0, 60)}...`);
         break;
       }
     }
 
     // Extract genres
     const genrePatterns = [
-      /<a[^>]+href="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/gi,
-      /<a[^>]+href="[^"]*category[^"]*"[^>]*>([^<]+)<\/a>/gi,
-      /<span[^>]+class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/span>/gi,
+      { pattern: /<a[^>]+href="[^"]*\/manga-genre\/[^"]*"[^>]*>([^<]+)<\/a>/gi, name: 'manga-genre' },
+      { pattern: /<a[^>]+href="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/gi, name: 'genre-link' },
+      { pattern: /<a[^>]+href="[^"]*category[^"]*"[^>]*>([^<]+)<\/a>/gi, name: 'category-link' },
     ];
 
     let genreMatches: string[] = [];
-    for (const pattern of genrePatterns) {
+    for (const { pattern, name } of genrePatterns) {
       const matches = extractAll(html, pattern);
       if (matches.length > 0) {
         genreMatches = matches.map(g => cleanText(g)).filter(g => g.length > 1 && g.length < 30);
-        if (genreMatches.length > 0) break;
+        if (genreMatches.length > 0) {
+          console.log(`✅ Genres found via ${name}: ${genreMatches.join(', ')}`);
+          break;
+        }
       }
     }
 
-    console.log('Extracted data:', { title, description: description?.substring(0, 100), coverImage, genres: genreMatches });
+    console.log('📊 Extraction summary:', { 
+      title, 
+      descriptionLength: description?.length || 0, 
+      mangaType,
+      rating,
+      coverImage: coverImage ? 'Found' : 'Not found', 
+      genresCount: genreMatches.length 
+    });
 
     // Check if manga already exists
     const { data: existingManga } = await supabaseAdmin
